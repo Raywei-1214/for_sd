@@ -33,6 +33,12 @@ Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [
 - 可选生成 `.env.local`
 - 可选直接启动 `seedance_gui.py`
 
+`构建Windows-EXE.bat` 会自动完成：
+
+- 构建 `dist\sd.exe`
+- 如果项目根目录存在 `.env.local`，自动复制到 `dist\`
+- 如果项目根目录不存在 `.env.local`，自动复制 `.env.local.example` 到 `dist\`
+
 或手动执行：
 
 ```bat
@@ -85,6 +91,12 @@ NOTION_DATABASE_ID=...
 ```
 
 如果缺少这两个值，账号将无法写入 Notion，但本地 txt 备份仍会继续落盘。
+
+出于安全原因：
+
+- 真实 `.env.local` 不会提交到 git
+- 仓库只保留 `.env.local.example`
+- Windows 构建时会把你本机的 `.env.local` 自动复制到 `dist\`
 
 当前 Notion 只会记录：
 - 积分为 `0`
