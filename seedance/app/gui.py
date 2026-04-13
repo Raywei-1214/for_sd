@@ -37,7 +37,7 @@ WINDOW_STYLESHEET = """
 QWidget {
   color: #2C2C24;
   font-family: "Nunito", "Microsoft YaHei UI", "PingFang SC", "Trebuchet MS";
-  font-size: 14px;
+  font-size: 13px;
   selection-background-color: rgba(93, 112, 82, 0.18);
 }
 
@@ -72,39 +72,39 @@ QFrame#StatCard {
 
 QLabel#Title {
   font-family: "Fraunces", "Georgia", "STSong";
-  font-size: 40px;
+  font-size: 34px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#SectionTitle {
   font-family: "Fraunces", "Georgia", "STSong";
-  font-size: 21px;
+  font-size: 18px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#SectionNote {
-  font-size: 12px;
+  font-size: 11px;
   color: #78786C;
 }
 
 QLabel#ValueHero {
   font-family: "Fraunces", "Georgia", "STSong";
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#ValueCard {
   font-family: "Fraunces", "Georgia", "STSong";
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#CaptionCard {
-  font-size: 12px;
+  font-size: 11px;
   color: #78786C;
 }
 
@@ -112,9 +112,9 @@ QLabel#StudioChip {
   background: rgba(230, 220, 205, 0.86);
   border: 1px solid rgba(193, 140, 93, 0.32);
   border-radius: 22px;
-  padding: 10px 18px;
+  padding: 8px 16px;
   font-family: "Fraunces", "Georgia", "STSong";
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #5D7052;
 }
@@ -122,7 +122,7 @@ QLabel#StudioChip {
 QCheckBox {
   spacing: 10px;
   color: #4A4A40;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 QCheckBox::indicator {
@@ -142,9 +142,30 @@ QSpinBox,
 QComboBox,
 QPlainTextEdit {
   background: rgba(255, 255, 255, 0.75);
+  color: #2C2C24;
   border: 1px solid #DED8CF;
   border-radius: 24px;
   padding: 10px 12px;
+}
+
+QSpinBox,
+QComboBox {
+  min-height: 42px;
+}
+
+QSpinBox::up-button,
+QSpinBox::down-button,
+QComboBox::drop-down {
+  background: transparent;
+}
+
+QSpinBox QLineEdit,
+QComboBox QLineEdit,
+QSpinBox QWidgetLineControl,
+QComboBox QWidgetLineControl {
+  color: #2C2C24;
+  background: transparent;
+  selection-background-color: rgba(230, 220, 205, 0.78);
 }
 
 QSpinBox:focus,
@@ -167,9 +188,9 @@ QComboBox QAbstractItemView {
 }
 
 QPushButton {
-  min-height: 48px;
+  min-height: 44px;
   border-radius: 24px;
-  padding: 0 22px;
+  padding: 0 18px;
   font-weight: 700;
 }
 
@@ -203,7 +224,7 @@ QPlainTextEdit {
   background: rgba(254, 254, 250, 0.95);
   color: #3A392F;
   font-family: "SF Mono", "JetBrains Mono", "Consolas", "Courier New";
-  font-size: 12px;
+  font-size: 11px;
   border-radius: 34px;
 }
 """
@@ -294,7 +315,7 @@ class SeedanceMainWindow(QMainWindow):
         self.resize(1360, 880)
         self.setMinimumSize(1200, 760)
         self.setStyleSheet(WINDOW_STYLESHEET)
-        self.setFont(QFont("Microsoft YaHei UI", 10))
+        self.setFont(QFont("Microsoft YaHei UI", 9))
 
         self.qt_log_handler = QtLogHandler()
         self.qt_log_handler.log_message.connect(self.append_log)
@@ -321,25 +342,25 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_ui(self) -> None:
         central_widget = QWidget()
-        central_widget.setContentsMargins(24, 24, 24, 24)
+        central_widget.setContentsMargins(20, 20, 20, 20)
         self.setCentralWidget(central_widget)
 
         root_layout = QVBoxLayout(central_widget)
         root_layout.setContentsMargins(0, 0, 0, 0)
-        root_layout.setSpacing(18)
+        root_layout.setSpacing(14)
 
         root_layout.addWidget(self._build_header_card())
 
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(18)
+        content_layout.setSpacing(14)
         root_layout.addLayout(content_layout, 1)
 
         left_column = QVBoxLayout()
-        left_column.setSpacing(18)
+        left_column.setSpacing(14)
         content_layout.addLayout(left_column, 4)
 
         right_column = QVBoxLayout()
-        right_column.setSpacing(18)
+        right_column.setSpacing(14)
         content_layout.addLayout(right_column, 7)
 
         left_column.addWidget(self._build_runtime_card())
@@ -353,8 +374,8 @@ class SeedanceMainWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("HeroCard")
         layout = QHBoxLayout(card)
-        layout.setContentsMargins(28, 24, 28, 24)
-        layout.setSpacing(18)
+        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setSpacing(14)
 
         left_layout = QVBoxLayout()
         left_layout.setSpacing(0)
@@ -382,8 +403,8 @@ class SeedanceMainWindow(QMainWindow):
         layout = card.layout()
 
         grid = QGridLayout()
-        grid.setHorizontalSpacing(14)
-        grid.setVerticalSpacing(14)
+        grid.setHorizontalSpacing(12)
+        grid.setVerticalSpacing(12)
         layout.addLayout(grid)
 
         self.total_count_spin = QSpinBox()
@@ -411,7 +432,7 @@ class SeedanceMainWindow(QMainWindow):
         grid.addWidget(self.email_combo, 2, 1)
 
         options_layout = QVBoxLayout()
-        options_layout.setSpacing(12)
+        options_layout.setSpacing(10)
         options_layout.addWidget(self.show_browser_checkbox)
         options_layout.addWidget(self.debug_checkbox)
         options_layout.addWidget(self.notion_checkbox)
@@ -423,7 +444,7 @@ class SeedanceMainWindow(QMainWindow):
         layout = card.layout()
 
         button_row = QHBoxLayout()
-        button_row.setSpacing(12)
+        button_row.setSpacing(10)
         layout.addLayout(button_row)
 
         self.start_button = QPushButton("开始执行")
@@ -437,9 +458,10 @@ class SeedanceMainWindow(QMainWindow):
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.clear_log_button)
 
-        tool_row = QHBoxLayout()
-        tool_row.setSpacing(12)
-        layout.addLayout(tool_row)
+        tool_grid = QGridLayout()
+        tool_grid.setHorizontalSpacing(10)
+        tool_grid.setVerticalSpacing(10)
+        layout.addLayout(tool_grid)
 
         open_report_button = QPushButton("打开报告目录")
         open_report_button.setObjectName("SecondaryButton")
@@ -453,32 +475,33 @@ class SeedanceMainWindow(QMainWindow):
         open_log_button.setObjectName("SecondaryButton")
         open_log_button.clicked.connect(lambda: self._open_path(LOG_FILE))
 
-        tool_row.addWidget(open_report_button)
-        tool_row.addWidget(open_backup_button)
-        tool_row.addWidget(open_log_button)
+        tool_grid.addWidget(open_report_button, 0, 0)
+        tool_grid.addWidget(open_backup_button, 0, 1)
+        tool_grid.addWidget(open_log_button, 1, 0, 1, 2)
         return card
 
     def _build_summary_card(self) -> QFrame:
         card = self._create_card("运行概览", "执行结束后会刷新成功率、报告路径和最近一次状态。")
         layout = card.layout()
 
-        stats_row = QHBoxLayout()
-        stats_row.setSpacing(14)
-        layout.addLayout(stats_row)
+        stats_grid = QGridLayout()
+        stats_grid.setHorizontalSpacing(10)
+        stats_grid.setVerticalSpacing(10)
+        layout.addLayout(stats_grid)
 
         self.total_stat = self._create_stat_card("计划任务", str(DEFAULT_TOTAL_COUNT))
         self.success_stat = self._create_stat_card("成功", "0")
         self.fail_stat = self._create_stat_card("失败", "0")
         self.rate_stat = self._create_stat_card("成功率", "0.0%")
 
-        stats_row.addWidget(self.total_stat["card"])
-        stats_row.addWidget(self.success_stat["card"])
-        stats_row.addWidget(self.fail_stat["card"])
-        stats_row.addWidget(self.rate_stat["card"])
+        stats_grid.addWidget(self.total_stat["card"], 0, 0)
+        stats_grid.addWidget(self.success_stat["card"], 0, 1)
+        stats_grid.addWidget(self.fail_stat["card"], 1, 0)
+        stats_grid.addWidget(self.rate_stat["card"], 1, 1)
 
         detail_layout = QGridLayout()
-        detail_layout.setHorizontalSpacing(14)
-        detail_layout.setVerticalSpacing(10)
+        detail_layout.setHorizontalSpacing(12)
+        detail_layout.setVerticalSpacing(8)
         layout.addLayout(detail_layout)
 
         self.run_status_value = QLabel("待命")
@@ -508,8 +531,8 @@ class SeedanceMainWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("Card")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(22, 20, 22, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(18, 16, 18, 16)
+        layout.setSpacing(12)
 
         title = QLabel(title_text)
         title.setObjectName("SectionTitle")
@@ -526,13 +549,17 @@ class SeedanceMainWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("StatCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(6)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(4)
 
         title = QLabel(title_text)
         title.setObjectName("CaptionCard")
+        title.setWordWrap(True)
+        title.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         value = QLabel(value_text)
         value.setObjectName("ValueCard")
+        value.setWordWrap(True)
+        value.setMinimumHeight(24)
 
         layout.addWidget(title)
         layout.addWidget(value)
