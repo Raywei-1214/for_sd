@@ -25,143 +25,132 @@ from PySide6.QtWidgets import (
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS
 from seedance.core.logger import get_logger
 from seedance.core.models import BatchSummary
-from seedance.infra.browser_detector import find_chrome_browser
 from seedance.infra.notion_client import NotionClient
 from seedance.orchestration.batch_runner import main as run_batch
 
 # ================================
-# Aurora 风格样式表
-# 目的: 对齐 CC_AutoCut 的深蓝极光玻璃质感
+# Organic / Natural 风格样式表
+# 目的: 用自然、有机、柔和的界面语言构建新的桌面工作台
 # 边界: 仅负责视觉，不承担业务状态逻辑
 # ================================
 WINDOW_STYLESHEET = """
 QWidget {
-  color: #eef4fd;
-  font-family: "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue";
+  color: #2C2C24;
+  font-family: "Nunito", "Microsoft YaHei UI", "PingFang SC", "Trebuchet MS";
   font-size: 14px;
+  selection-background-color: rgba(93, 112, 82, 0.18);
 }
 
 QMainWindow {
   background:
-    qradialgradient(cx: 0.12, cy: 0.18, radius: 0.52, fx: 0.12, fy: 0.18, stop: 0 rgba(123, 98, 222, 105), stop: 1 rgba(123, 98, 222, 0)),
-    qradialgradient(cx: 0.82, cy: 0.12, radius: 0.48, fx: 0.82, fy: 0.12, stop: 0 rgba(66, 178, 215, 86), stop: 1 rgba(66, 178, 215, 0)),
-    qradialgradient(cx: 0.8, cy: 0.84, radius: 0.56, fx: 0.8, fy: 0.84, stop: 0 rgba(37, 137, 208, 72), stop: 1 rgba(37, 137, 208, 0)),
-    linear-gradient(180deg, #07112f, #050d27);
+    qradialgradient(cx: 0.14, cy: 0.18, radius: 0.38, fx: 0.14, fy: 0.18, stop: 0 rgba(193, 140, 93, 42), stop: 1 rgba(193, 140, 93, 0)),
+    qradialgradient(cx: 0.82, cy: 0.1, radius: 0.34, fx: 0.82, fy: 0.1, stop: 0 rgba(93, 112, 82, 45), stop: 1 rgba(93, 112, 82, 0)),
+    qradialgradient(cx: 0.78, cy: 0.86, radius: 0.42, fx: 0.78, fy: 0.86, stop: 0 rgba(230, 220, 205, 110), stop: 1 rgba(230, 220, 205, 0)),
+    linear-gradient(180deg, #FDFCF8, #F6F1E9);
 }
 
 QFrame#Card {
-  background: rgba(30, 46, 95, 0.58);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 24px;
+  background: rgba(254, 254, 250, 0.92);
+  border: 1px solid rgba(222, 216, 207, 0.78);
+  border-radius: 32px;
 }
 
 QFrame#HeroCard {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(83, 111, 196, 0.42), stop: 1 rgba(28, 49, 116, 0.58));
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 28px;
+  background:
+    qradialgradient(cx: 0.16, cy: 0.28, radius: 0.4, fx: 0.16, fy: 0.28, stop: 0 rgba(230, 220, 205, 180), stop: 1 rgba(230, 220, 205, 0)),
+    qradialgradient(cx: 0.88, cy: 0.18, radius: 0.32, fx: 0.88, fy: 0.18, stop: 0 rgba(193, 140, 93, 54), stop: 1 rgba(193, 140, 93, 0)),
+    qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 rgba(254, 254, 250, 0.98), stop: 1 rgba(240, 235, 229, 0.94));
+  border: 1px solid rgba(222, 216, 207, 0.86);
+  border-radius: 38px;
 }
 
 QFrame#StatCard {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 20px;
+  background: rgba(255, 252, 247, 0.95);
+  border: 1px solid rgba(222, 216, 207, 0.72);
+  border-radius: 28px;
 }
 
 QLabel#Title {
-  font-size: 30px;
+  font-family: "Fraunces", "Georgia", "STSong";
+  font-size: 40px;
   font-weight: 700;
-  color: #f4f8ff;
-}
-
-QLabel#Subtitle {
-  font-size: 13px;
-  color: rgba(228, 238, 252, 0.76);
+  color: #2C2C24;
 }
 
 QLabel#SectionTitle {
-  font-size: 18px;
+  font-family: "Fraunces", "Georgia", "STSong";
+  font-size: 21px;
   font-weight: 700;
-  color: #f2f7ff;
+  color: #2C2C24;
 }
 
 QLabel#SectionNote {
   font-size: 12px;
-  color: rgba(220, 232, 251, 0.7);
+  color: #78786C;
 }
 
 QLabel#ValueHero {
+  font-family: "Fraunces", "Georgia", "STSong";
   font-size: 28px;
   font-weight: 700;
-  color: #eff6ff;
+  color: #2C2C24;
 }
 
 QLabel#ValueCard {
-  font-size: 22px;
+  font-family: "Fraunces", "Georgia", "STSong";
+  font-size: 24px;
   font-weight: 700;
-  color: #eff6ff;
+  color: #2C2C24;
 }
 
 QLabel#CaptionCard {
   font-size: 12px;
-  color: rgba(224, 235, 252, 0.68);
+  color: #78786C;
 }
 
-QLabel#PillInfo,
-QLabel#PillSuccess,
-QLabel#PillWarning {
-  border-radius: 14px;
-  padding: 6px 12px;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-QLabel#PillInfo {
-  background: rgba(85, 167, 224, 0.18);
-  border: 1px solid rgba(145, 211, 255, 0.25);
-}
-
-QLabel#PillSuccess {
-  background: rgba(109, 196, 154, 0.18);
-  border: 1px solid rgba(191, 255, 219, 0.25);
-}
-
-QLabel#PillWarning {
-  background: rgba(227, 180, 119, 0.18);
-  border: 1px solid rgba(255, 225, 176, 0.25);
+QLabel#StudioChip {
+  background: rgba(230, 220, 205, 0.86);
+  border: 1px solid rgba(193, 140, 93, 0.32);
+  border-radius: 22px;
+  padding: 10px 18px;
+  font-family: "Fraunces", "Georgia", "STSong";
+  font-size: 15px;
+  font-weight: 700;
+  color: #5D7052;
 }
 
 QCheckBox {
   spacing: 10px;
-  color: #eef4fd;
+  color: #4A4A40;
+  font-size: 14px;
 }
 
 QCheckBox::indicator {
   width: 22px;
   height: 22px;
   border-radius: 11px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #DED8CF;
+  background: rgba(255, 255, 255, 0.76);
 }
 
 QCheckBox::indicator:checked {
-  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 #e7f6ff, stop: 1 #87dbff);
-  border: 1px solid rgba(255, 255, 255, 0.52);
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 1, stop: 0 #5D7052, stop: 1 #75896A);
+  border: 1px solid #5D7052;
 }
 
 QSpinBox,
 QComboBox,
 QPlainTextEdit {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid #DED8CF;
+  border-radius: 24px;
   padding: 10px 12px;
-  selection-background-color: rgba(126, 212, 255, 0.34);
 }
 
 QSpinBox:focus,
 QComboBox:focus,
 QPlainTextEdit:focus {
-  border: 1px solid rgba(146, 217, 255, 0.46);
+  border: 1px solid rgba(93, 112, 82, 0.48);
 }
 
 QComboBox::drop-down {
@@ -170,49 +159,52 @@ QComboBox::drop-down {
 }
 
 QComboBox QAbstractItemView {
-  background: rgba(34, 49, 88, 0.96);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 14px;
-  selection-background-color: rgba(140, 214, 255, 0.2);
+  background: rgba(253, 252, 248, 0.98);
+  color: #2C2C24;
+  border: 1px solid #DED8CF;
+  border-radius: 18px;
+  selection-background-color: rgba(230, 220, 205, 0.78);
 }
 
 QPushButton {
-  min-height: 44px;
-  border-radius: 16px;
-  padding: 0 18px;
+  min-height: 48px;
+  border-radius: 24px;
+  padding: 0 22px;
   font-weight: 700;
 }
 
 QPushButton#PrimaryButton {
-  background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 rgba(245, 251, 255, 0.98), stop: 1 rgba(214, 235, 252, 0.92));
-  color: #173c66;
-  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: #5D7052;
+  color: #F3F4F1;
+  border: 1px solid rgba(93, 112, 82, 0.68);
 }
 
 QPushButton#PrimaryButton:hover {
-  background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1, stop: 0 rgba(252, 254, 255, 1), stop: 1 rgba(226, 242, 255, 0.95));
+  background: #6A7D5F;
 }
 
 QPushButton#SecondaryButton {
-  background: rgba(255, 255, 255, 0.1);
-  color: #eef4fd;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.18);
+  color: #C18C5D;
+  border: 2px solid rgba(193, 140, 93, 0.72);
 }
 
 QPushButton#SecondaryButton:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(230, 220, 205, 0.48);
 }
 
 QPushButton:disabled {
-  color: rgba(255, 255, 255, 0.48);
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(74, 74, 64, 0.46);
+  background: rgba(240, 235, 229, 0.72);
+  border: 1px solid rgba(222, 216, 207, 0.82);
 }
 
 QPlainTextEdit {
-  background: rgba(7, 15, 40, 0.78);
-  font-family: "SF Mono", "JetBrains Mono", "Consolas";
+  background: rgba(254, 254, 250, 0.95);
+  color: #3A392F;
+  font-family: "SF Mono", "JetBrains Mono", "Consolas", "Courier New";
   font-size: 12px;
+  border-radius: 34px;
 }
 """
 
@@ -298,7 +290,7 @@ class SeedanceMainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.last_summary: BatchSummary | None = None
 
-        self.setWindowTitle("sd 图形面板")
+        self.setWindowTitle("拾米工作室 - SD账号批量注册")
         self.resize(1360, 880)
         self.setMinimumSize(1200, 760)
         self.setStyleSheet(WINDOW_STYLESHEET)
@@ -309,7 +301,6 @@ class SeedanceMainWindow(QMainWindow):
         logger.addHandler(self.qt_log_handler)
 
         self._build_ui()
-        self._refresh_environment_badges()
         self._apply_defaults()
 
     def closeEvent(self, event) -> None:
@@ -349,13 +340,13 @@ class SeedanceMainWindow(QMainWindow):
 
         right_column = QVBoxLayout()
         right_column.setSpacing(18)
-        content_layout.addLayout(right_column, 6)
+        content_layout.addLayout(right_column, 7)
 
         left_column.addWidget(self._build_runtime_card())
+        left_column.addWidget(self._build_summary_card())
         left_column.addWidget(self._build_action_card())
         left_column.addStretch(1)
 
-        right_column.addWidget(self._build_summary_card())
         right_column.addWidget(self._build_log_card(), 1)
 
     def _build_header_card(self) -> QFrame:
@@ -366,34 +357,28 @@ class SeedanceMainWindow(QMainWindow):
         layout.setSpacing(18)
 
         left_layout = QVBoxLayout()
-        left_layout.setSpacing(6)
-        layout.addLayout(left_layout, 7)
+        left_layout.setSpacing(0)
+        layout.addLayout(left_layout, 8)
 
-        title = QLabel("sd 批量注册面板")
+        title = QLabel("SD账号批量注册")
         title.setObjectName("Title")
-        subtitle = QLabel("参考 CC_AutoCut 的 Aurora 风格，参数集中配置，日志与结果同屏查看。")
-        subtitle.setObjectName("Subtitle")
-        subtitle.setWordWrap(True)
 
         left_layout.addWidget(title)
-        left_layout.addWidget(subtitle)
 
         right_layout = QVBoxLayout()
-        right_layout.setSpacing(10)
-        layout.addLayout(right_layout, 3)
+        right_layout.setSpacing(0)
+        layout.addLayout(right_layout, 2)
 
-        self.browser_pill = QLabel("浏览器状态检测中")
-        self.browser_pill.setObjectName("PillInfo")
-        self.notion_pill = QLabel("Notion 默认开启")
-        self.notion_pill.setObjectName("PillInfo")
-
-        right_layout.addWidget(self.browser_pill, alignment=Qt.AlignRight)
-        right_layout.addWidget(self.notion_pill, alignment=Qt.AlignRight)
+        studio_chip = QLabel("拾米工作室")
+        studio_chip.setObjectName("StudioChip")
+        studio_chip.setAlignment(Qt.AlignCenter)
+        studio_chip.setTextFormat(Qt.PlainText)
+        right_layout.addWidget(studio_chip, alignment=Qt.AlignRight | Qt.AlignTop)
         right_layout.addStretch(1)
         return card
 
     def _build_runtime_card(self) -> QFrame:
-        card = self._create_card("运行参数", "Windows exe 将直接打开这个面板；线程范围限制为 1-3，避免把风控风险继续放大。")
+        card = self._create_card("运行参数", "线程限制在 1-3 之间，先保留稳定性优先。")
         layout = card.layout()
 
         grid = QGridLayout()
@@ -417,7 +402,6 @@ class SeedanceMainWindow(QMainWindow):
         self.show_browser_checkbox = QCheckBox("显示浏览器窗口")
         self.debug_checkbox = QCheckBox("调试模式（保存截图）")
         self.notion_checkbox = QCheckBox("启用 Notion 同步")
-        self.notion_checkbox.stateChanged.connect(self._refresh_notion_pill)
 
         grid.addWidget(self._create_field_label("注册数量"), 0, 0)
         grid.addWidget(self.total_count_spin, 0, 1)
@@ -431,7 +415,6 @@ class SeedanceMainWindow(QMainWindow):
         options_layout.addWidget(self.show_browser_checkbox)
         options_layout.addWidget(self.debug_checkbox)
         options_layout.addWidget(self.notion_checkbox)
-        options_layout.addWidget(self._create_note_label("Notion 默认开启；如果启动前连不到，会提示关闭后继续。"))
         grid.addLayout(options_layout, 3, 0, 1, 2)
         return card
 
@@ -512,7 +495,7 @@ class SeedanceMainWindow(QMainWindow):
         return card
 
     def _build_log_card(self) -> QFrame:
-        card = self._create_card("实时日志", "注册流程、失败步骤和 Notion / 本地备份状态都会实时追加到这里。")
+        card = self._create_card("实时日志")
         layout = card.layout()
 
         self.log_view = QPlainTextEdit()
@@ -521,7 +504,7 @@ class SeedanceMainWindow(QMainWindow):
         layout.addWidget(self.log_view, 1)
         return card
 
-    def _create_card(self, title_text: str, note_text: str) -> QFrame:
+    def _create_card(self, title_text: str, note_text: str | None = None) -> QFrame:
         card = QFrame()
         card.setObjectName("Card")
         layout = QVBoxLayout(card)
@@ -530,12 +513,13 @@ class SeedanceMainWindow(QMainWindow):
 
         title = QLabel(title_text)
         title.setObjectName("SectionTitle")
-        note = QLabel(note_text)
-        note.setObjectName("SectionNote")
-        note.setWordWrap(True)
 
         layout.addWidget(title)
-        layout.addWidget(note)
+        if note_text:
+            note = QLabel(note_text)
+            note.setObjectName("SectionNote")
+            note.setWordWrap(True)
+            layout.addWidget(note)
         return card
 
     def _create_stat_card(self, title_text: str, value_text: str) -> dict:
@@ -574,28 +558,6 @@ class SeedanceMainWindow(QMainWindow):
         self.debug_checkbox.setChecked(False)
         self.notion_checkbox.setChecked(True)
         self.total_stat["value"].setText(str(DEFAULT_TOTAL_COUNT))
-        self._refresh_notion_pill()
-
-    def _refresh_environment_badges(self) -> None:
-        chrome_path = find_chrome_browser()
-        if chrome_path:
-            self.browser_pill.setText(f"浏览器: {chrome_path}")
-            self.browser_pill.setObjectName("PillSuccess")
-        else:
-            self.browser_pill.setText("浏览器: 未检测到本地 Chrome，将退回 Playwright Chromium")
-            self.browser_pill.setObjectName("PillWarning")
-        self.browser_pill.style().unpolish(self.browser_pill)
-        self.browser_pill.style().polish(self.browser_pill)
-
-    def _refresh_notion_pill(self) -> None:
-        if self.notion_checkbox.isChecked():
-            self.notion_pill.setText("Notion: 默认开启")
-            self.notion_pill.setObjectName("PillInfo")
-        else:
-            self.notion_pill.setText("Notion: 已关闭，仅写本地 txt")
-            self.notion_pill.setObjectName("PillWarning")
-        self.notion_pill.style().unpolish(self.notion_pill)
-        self.notion_pill.style().polish(self.notion_pill)
 
     def append_log(self, message: str) -> None:
         self.log_view.appendPlainText(message)
