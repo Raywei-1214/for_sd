@@ -1,5 +1,9 @@
 # Windows EXE 打包说明
 
+如果你是第一次接手项目，建议先看：
+
+- [新同事使用说明](/Users/yanwei/Seedance2.0/docs/new-colleague-onboarding.md)
+
 ## 目标
 
 Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [启动sd.command](/Users/yanwei/Seedance2.0/启动sd.command:1)。
