@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -38,7 +39,7 @@ from seedance.orchestration.batch_runner import main as run_batch
 WINDOW_STYLESHEET = """
 QWidget {
   color: #2C2C24;
-  font-family: "Microsoft JhengHei UI", "Segoe UI", "Microsoft YaHei UI", "PingFang SC";
+  font-family: "Inter", "SF Pro Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue";
   font-size: 13px;
   selection-background-color: rgba(93, 112, 82, 0.18);
 }
@@ -73,15 +74,15 @@ QFrame#StatCard {
 }
 
 QLabel#Title {
-  font-family: "FZLanTingHeiS-R-GB", "FZXiYuan-M01", "FZShuTi", "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 32px;
+  font-family: "Inter", "SF Pro Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue";
+  font-size: 31px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#SectionTitle {
-  font-family: "FZLanTingHeiS-R-GB", "FZXiYuan-M01", "FZShuTi", "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 18px;
+  font-family: "Inter", "SF Pro Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue";
+  font-size: 17px;
   font-weight: 700;
   color: #2C2C24;
 }
@@ -92,15 +93,15 @@ QLabel#SectionNote {
 }
 
 QLabel#ValueHero {
-  font-family: "Microsoft JhengHei UI", "Segoe UI", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 18px;
+  font-family: "Inter", "SF Pro Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue";
+  font-size: 17px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#ValueCard {
-  font-family: "Microsoft JhengHei UI", "Segoe UI", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 15px;
+  font-family: "Inter", "SF Pro Display", "Segoe UI", "Microsoft YaHei UI", "PingFang SC", "Helvetica Neue";
+  font-size: 14px;
   font-weight: 700;
   color: #2C2C24;
 }
@@ -142,13 +143,13 @@ QPlainTextEdit {
   background: rgba(255, 255, 255, 0.75);
   color: #2C2C24;
   border: 1px solid #DED8CF;
-  border-radius: 24px;
-  padding: 8px 12px;
+  border-radius: 20px;
+  padding: 5px 12px;
 }
 
 QSpinBox,
 QComboBox {
-  min-height: 38px;
+  min-height: 30px;
 }
 
 QSpinBox::up-button,
@@ -186,8 +187,8 @@ QComboBox QAbstractItemView {
 }
 
 QPushButton {
-  min-height: 44px;
-  border-radius: 24px;
+  min-height: 40px;
+  border-radius: 22px;
   padding: 0 18px;
   font-weight: 700;
 }
@@ -196,6 +197,8 @@ QPushButton#PrimaryButton {
   background: #5D7052;
   color: #F3F4F1;
   border: 1px solid rgba(93, 112, 82, 0.68);
+  border-radius: 24px;
+  padding: 0 24px;
 }
 
 QPushButton#PrimaryButton:hover {
@@ -326,7 +329,7 @@ class SeedanceMainWindow(QMainWindow):
         self.resize(1360, 880)
         self.setMinimumSize(1200, 760)
         self.setStyleSheet(WINDOW_STYLESHEET)
-        self.setFont(QFont("Microsoft YaHei UI", 9))
+        self.setFont(QFont("Inter", 9))
 
         self.qt_log_handler = QtLogHandler()
         self.qt_log_handler.log_message.connect(self.append_log)
@@ -422,15 +425,18 @@ class SeedanceMainWindow(QMainWindow):
         self.total_count_spin = QSpinBox()
         self.total_count_spin.setRange(1, 99999)
         self.total_count_spin.setSuffix(" 个")
+        self.total_count_spin.setFixedHeight(34)
 
         self.max_workers_spin = QSpinBox()
         self.max_workers_spin.setRange(MIN_WORKERS, MAX_WORKERS)
         self.max_workers_spin.setSuffix(" 线程")
+        self.max_workers_spin.setFixedHeight(34)
 
         self.email_combo = QComboBox()
         for index, provider in enumerate(TEMP_EMAIL_PROVIDERS, start=1):
             self.email_combo.addItem(f"{index} - {provider['name']}", provider["name"])
         self.email_combo.addItem("7 - 随机", None)
+        self.email_combo.setFixedHeight(34)
 
         form_grid = QGridLayout()
         form_grid.setHorizontalSpacing(12)
@@ -470,15 +476,24 @@ class SeedanceMainWindow(QMainWindow):
 
         self.start_button = QPushButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
+        self.start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.start_button.setMinimumWidth(148)
+        self.start_button.setMaximumWidth(172)
+        self.start_button.setFixedHeight(44)
         self.start_button.clicked.connect(self.start_run)
 
         self.stop_button = QPushButton("打断结束")
         self.stop_button.setObjectName("DangerButton")
+        self.stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.stop_button.setMinimumWidth(132)
+        self.stop_button.setMaximumWidth(156)
+        self.stop_button.setFixedHeight(44)
         self.stop_button.setDisabled(True)
         self.stop_button.clicked.connect(self.stop_run)
 
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.stop_button)
+        button_row.addStretch(1)
 
         tool_layout = QVBoxLayout()
         tool_layout.setSpacing(8)
