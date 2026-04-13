@@ -306,6 +306,7 @@ class BatchWorker(QObject):
                     max_workers=self.run_config.max_workers,
                     specified_email=self.run_config.specified_email,
                     notion_enabled=self.run_config.notion_enabled,
+                    stop_event=self.run_config.stop_event,
                     interactive=False,
                 )
             self.finished.emit(summary)
@@ -710,6 +711,7 @@ class SeedanceMainWindow(QMainWindow):
         self.stop_button.setText("打断结束")
         self.append_log("=" * 60)
         self.append_log("GUI 已启动批量注册任务")
+        self.append_log(f"当前日志文件: {LOG_FILE}")
         self._set_running_state(True)
 
         self.worker_thread = QThread(self)
