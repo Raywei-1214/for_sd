@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
-    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -37,7 +36,7 @@ from seedance.orchestration.batch_runner import main as run_batch
 WINDOW_STYLESHEET = """
 QWidget {
   color: #2C2C24;
-  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
+  font-family: "Microsoft JhengHei UI", "Segoe UI", "Microsoft YaHei UI", "PingFang SC";
   font-size: 13px;
   selection-background-color: rgba(93, 112, 82, 0.18);
 }
@@ -72,15 +71,15 @@ QFrame#StatCard {
 }
 
 QLabel#Title {
-  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 34px;
+  font-family: "DFKai-SB", "STKaiti", "Kaiti SC", "Microsoft JhengHei UI", "Microsoft YaHei UI", "PingFang SC";
+  font-size: 32px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#SectionTitle {
-  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 18px;
+  font-family: "DFKai-SB", "STKaiti", "Kaiti SC", "Microsoft JhengHei UI", "Microsoft YaHei UI", "PingFang SC";
+  font-size: 19px;
   font-weight: 700;
   color: #2C2C24;
 }
@@ -91,15 +90,15 @@ QLabel#SectionNote {
 }
 
 QLabel#ValueHero {
-  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 22px;
+  font-family: "Microsoft JhengHei UI", "Segoe UI", "Microsoft YaHei UI", "PingFang SC";
+  font-size: 18px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#ValueCard {
-  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 16px;
+  font-family: "Microsoft JhengHei UI", "Segoe UI", "Microsoft YaHei UI", "PingFang SC";
+  font-size: 15px;
   font-weight: 700;
   color: #2C2C24;
 }
@@ -116,9 +115,9 @@ QLabel#FieldLabel {
 }
 
 QCheckBox {
-  spacing: 10px;
+  spacing: 8px;
   color: #4A4A40;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 QCheckBox::indicator {
@@ -351,13 +350,18 @@ class SeedanceMainWindow(QMainWindow):
         content_layout.setSpacing(14)
         root_layout.addLayout(content_layout, 1)
 
-        left_column = QVBoxLayout()
+        left_panel = QWidget()
+        left_panel.setFixedWidth(450)
+        left_column = QVBoxLayout(left_panel)
         left_column.setSpacing(14)
-        content_layout.addLayout(left_column, 4)
+        left_column.setContentsMargins(0, 0, 0, 0)
+        content_layout.addWidget(left_panel, 0)
 
-        right_column = QVBoxLayout()
+        right_panel = QWidget()
+        right_column = QVBoxLayout(right_panel)
         right_column.setSpacing(14)
-        content_layout.addLayout(right_column, 6)
+        right_column.setContentsMargins(0, 0, 0, 0)
+        content_layout.addWidget(right_panel, 1)
 
         runtime_card = self._build_runtime_card()
         summary_card = self._build_summary_card()
@@ -389,9 +393,6 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_runtime_card(self) -> QFrame:
         card = self._create_card("运行参数", "线程限制在 1-3 之间，先保留稳定性优先。")
-        card.setMinimumWidth(430)
-        card.setMinimumHeight(320)
-        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         layout = card.layout()
 
         self.total_count_spin = QSpinBox()
@@ -407,21 +408,27 @@ class SeedanceMainWindow(QMainWindow):
             self.email_combo.addItem(f"{index} - {provider['name']}", provider["name"])
         self.email_combo.addItem("7 - 随机", None)
 
-        field_layout = QVBoxLayout()
-        field_layout.setSpacing(10)
-        layout.addLayout(field_layout)
+        form_grid = QGridLayout()
+        form_grid.setHorizontalSpacing(12)
+        form_grid.setVerticalSpacing(10)
+        form_grid.setColumnMinimumWidth(0, 84)
+        form_grid.setColumnStretch(1, 1)
+        layout.addLayout(form_grid)
 
-        field_layout.addLayout(self._create_field_stack("注册数量", self.total_count_spin))
-        field_layout.addLayout(self._create_field_stack("并发线程", self.max_workers_spin))
-        field_layout.addLayout(self._create_field_stack("邮箱站点", self.email_combo))
+        form_grid.addWidget(self._create_field_label("注册数量"), 0, 0)
+        form_grid.addWidget(self.total_count_spin, 0, 1)
+        form_grid.addWidget(self._create_field_label("并发线程"), 1, 0)
+        form_grid.addWidget(self.max_workers_spin, 1, 1)
+        form_grid.addWidget(self._create_field_label("邮箱站点"), 2, 0)
+        form_grid.addWidget(self.email_combo, 2, 1)
 
         self.show_browser_checkbox = QCheckBox("显示浏览器窗口")
         self.debug_checkbox = QCheckBox("调试模式（保存截图）")
         self.notion_checkbox = QCheckBox("启用 Notion 同步")
 
         options_layout = QVBoxLayout()
-        options_layout.setSpacing(8)
-        options_layout.setContentsMargins(0, 4, 0, 0)
+        options_layout.setSpacing(6)
+        options_layout.setContentsMargins(0, 8, 0, 0)
         options_layout.addWidget(self.show_browser_checkbox)
         options_layout.addWidget(self.debug_checkbox)
         options_layout.addWidget(self.notion_checkbox)
@@ -430,9 +437,6 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_action_card(self) -> QFrame:
         card = self._create_card("执行控制", "开始前会先做浏览器探测和 Notion 预检；运行过程中可打开报告与备份目录。")
-        card.setMinimumWidth(430)
-        card.setMinimumHeight(190)
-        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         layout = card.layout()
 
         button_row = QHBoxLayout()
@@ -450,10 +454,10 @@ class SeedanceMainWindow(QMainWindow):
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.clear_log_button)
 
-        tool_grid = QGridLayout()
-        tool_grid.setHorizontalSpacing(10)
-        tool_grid.setVerticalSpacing(10)
-        layout.addLayout(tool_grid)
+        tool_layout = QVBoxLayout()
+        tool_layout.setSpacing(8)
+        tool_layout.setContentsMargins(0, 2, 0, 0)
+        layout.addLayout(tool_layout)
 
         open_report_button = QPushButton("打开报告目录")
         open_report_button.setObjectName("SecondaryButton")
@@ -467,21 +471,18 @@ class SeedanceMainWindow(QMainWindow):
         open_log_button.setObjectName("SecondaryButton")
         open_log_button.clicked.connect(lambda: self._open_path(LOG_FILE))
 
-        tool_grid.addWidget(open_report_button, 0, 0)
-        tool_grid.addWidget(open_backup_button, 0, 1)
-        tool_grid.addWidget(open_log_button, 1, 0, 1, 2)
+        tool_layout.addWidget(open_report_button)
+        tool_layout.addWidget(open_backup_button)
+        tool_layout.addWidget(open_log_button)
         return card
 
     def _build_summary_card(self) -> QFrame:
         card = self._create_card("运行概览", "执行结束后会刷新成功率、报告路径和最近一次状态。")
-        card.setMinimumWidth(430)
-        card.setMinimumHeight(250)
-        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         layout = card.layout()
 
         stats_grid = QGridLayout()
-        stats_grid.setHorizontalSpacing(10)
-        stats_grid.setVerticalSpacing(10)
+        stats_grid.setHorizontalSpacing(8)
+        stats_grid.setVerticalSpacing(8)
         layout.addLayout(stats_grid)
 
         self.total_stat = self._create_stat_card("计划任务", str(DEFAULT_TOTAL_COUNT))
@@ -495,7 +496,7 @@ class SeedanceMainWindow(QMainWindow):
         stats_grid.addWidget(self.rate_stat["card"], 1, 1)
 
         detail_layout = QVBoxLayout()
-        detail_layout.setSpacing(10)
+        detail_layout.setSpacing(8)
         detail_layout.setContentsMargins(0, 2, 0, 0)
         layout.addLayout(detail_layout)
 
@@ -523,8 +524,8 @@ class SeedanceMainWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("Card")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(18, 16, 18, 16)
-        layout.setSpacing(12)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
 
         title = QLabel(title_text)
         title.setObjectName("SectionTitle")
@@ -541,8 +542,9 @@ class SeedanceMainWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("StatCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(12, 12, 12, 12)
-        layout.setSpacing(4)
+        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setSpacing(3)
+        card.setMinimumHeight(72)
 
         title = QLabel(title_text)
         title.setObjectName("CaptionCard")
@@ -560,6 +562,7 @@ class SeedanceMainWindow(QMainWindow):
     def _create_field_label(self, text: str) -> QLabel:
         label = QLabel(text)
         label.setObjectName("FieldLabel")
+        label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
         return label
 
     def _create_note_label(self, text: str) -> QLabel:
@@ -568,13 +571,6 @@ class SeedanceMainWindow(QMainWindow):
         label.setWordWrap(True)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
-
-    def _create_field_stack(self, label_text: str, widget: QWidget) -> QVBoxLayout:
-        layout = QVBoxLayout()
-        layout.setSpacing(6)
-        layout.addWidget(self._create_field_label(label_text))
-        layout.addWidget(widget)
-        return layout
 
     def _create_value_block(self, label_text: str, value_widget: QWidget) -> QVBoxLayout:
         layout = QVBoxLayout()
