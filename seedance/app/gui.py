@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -71,15 +72,15 @@ QFrame#StatCard {
 }
 
 QLabel#Title {
-  font-family: "DFKai-SB", "STKaiti", "Kaiti SC", "Microsoft JhengHei UI", "Microsoft YaHei UI", "PingFang SC";
+  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
   font-size: 32px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#SectionTitle {
-  font-family: "DFKai-SB", "STKaiti", "Kaiti SC", "Microsoft JhengHei UI", "Microsoft YaHei UI", "PingFang SC";
-  font-size: 19px;
+  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
+  font-size: 18px;
   font-weight: 700;
   color: #2C2C24;
 }
@@ -118,6 +119,7 @@ QCheckBox {
   spacing: 8px;
   color: #4A4A40;
   font-size: 12px;
+  min-height: 24px;
 }
 
 QCheckBox::indicator {
@@ -140,12 +142,12 @@ QPlainTextEdit {
   color: #2C2C24;
   border: 1px solid #DED8CF;
   border-radius: 24px;
-  padding: 10px 12px;
+  padding: 8px 12px;
 }
 
 QSpinBox,
 QComboBox {
-  min-height: 42px;
+  min-height: 38px;
 }
 
 QSpinBox::up-button,
@@ -350,12 +352,19 @@ class SeedanceMainWindow(QMainWindow):
         content_layout.setSpacing(14)
         root_layout.addLayout(content_layout, 1)
 
+        left_scroll = QScrollArea()
+        left_scroll.setWidgetResizable(True)
+        left_scroll.setFixedWidth(470)
+        left_scroll.setFrameShape(QFrame.NoFrame)
+        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        left_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
+        content_layout.addWidget(left_scroll, 0)
+
         left_panel = QWidget()
-        left_panel.setFixedWidth(450)
         left_column = QVBoxLayout(left_panel)
         left_column.setSpacing(14)
         left_column.setContentsMargins(0, 0, 0, 0)
-        content_layout.addWidget(left_panel, 0)
+        left_scroll.setWidget(left_panel)
 
         right_panel = QWidget()
         right_column = QVBoxLayout(right_panel)
@@ -393,6 +402,7 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_runtime_card(self) -> QFrame:
         card = self._create_card("运行参数", "线程限制在 1-3 之间，先保留稳定性优先。")
+        card.setMinimumHeight(245)
         layout = card.layout()
 
         self.total_count_spin = QSpinBox()
@@ -437,6 +447,7 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_action_card(self) -> QFrame:
         card = self._create_card("执行控制", "开始前会先做浏览器探测和 Notion 预检；运行过程中可打开报告与备份目录。")
+        card.setMinimumHeight(220)
         layout = card.layout()
 
         button_row = QHBoxLayout()
@@ -478,6 +489,7 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_summary_card(self) -> QFrame:
         card = self._create_card("运行概览", "执行结束后会刷新成功率、报告路径和最近一次状态。")
+        card.setMinimumHeight(260)
         layout = card.layout()
 
         stats_grid = QGridLayout()
