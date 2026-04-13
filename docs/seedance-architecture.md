@@ -139,6 +139,25 @@
 - mac：
   - 继续通过 `.command` 调用 CLI，不强制切换到 GUI。
 
+## 当前仓库发布策略
+
+- 当前公开仓库地址：
+  - `git@github.com:Raywei-1214/for_sd.git`
+- 推送方式统一走 `SSH`，不走 `https` 用户名密码。
+- 设计原因：
+  - 当前机器上的 `CC_AutoCut` 已使用 GitHub SSH 凭据。
+  - 直接复用 SSH 路线最稳定，避免 `https` 方式在终端里再次卡住认证。
+- 公开仓库必须忽略以下本地运行产物与敏感配置：
+  - `.env.local`
+  - `python_portable/`
+  - `dreamina_register_usa.log`
+  - `debug.log`
+  - `registered_accounts_usa/`
+  - `run_reports/`
+  - `screenshots_usa/`
+  - `browser_config.json`
+  - `temp_mail_health.json`
+
 ## 下一阶段建议
 
 1. 为 `mail.tm`、`10minutemail.net` 等高频站点补真实 DOM 校验，压缩通用兼容扫描触发率。
