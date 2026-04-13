@@ -2,6 +2,7 @@ import logging
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
+from threading import Event
 
 from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QFont
@@ -72,14 +73,14 @@ QFrame#StatCard {
 }
 
 QLabel#Title {
-  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
+  font-family: "FZLanTingHeiS-R-GB", "FZXiYuan-M01", "FZShuTi", "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
   font-size: 32px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#SectionTitle {
-  font-family: "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
+  font-family: "FZLanTingHeiS-R-GB", "FZXiYuan-M01", "FZShuTi", "KaiTi", "STKaiti", "Kaiti SC", "Microsoft YaHei UI", "PingFang SC";
   font-size: 18px;
   font-weight: 700;
   color: #2C2C24;
@@ -211,6 +212,16 @@ QPushButton#SecondaryButton:hover {
   background: rgba(230, 220, 205, 0.48);
 }
 
+QPushButton#DangerButton {
+  background: rgba(168, 84, 72, 0.12);
+  color: #A85448;
+  border: 2px solid rgba(168, 84, 72, 0.45);
+}
+
+QPushButton#DangerButton:hover {
+  background: rgba(168, 84, 72, 0.2);
+}
+
 QPushButton:disabled {
   color: rgba(74, 74, 64, 0.46);
   background: rgba(240, 235, 229, 0.72);
@@ -237,6 +248,7 @@ class GuiRunConfig:
     debug_mode: bool
     notion_enabled: bool
     specified_email: str | None
+    stop_event: Event | None
 
 
 class QtLogHandler(logging.Handler, QObject):
@@ -307,6 +319,7 @@ class SeedanceMainWindow(QMainWindow):
         self.worker_thread: QThread | None = None
         self.worker: BatchWorker | None = None
         self.last_summary: BatchSummary | None = None
+        self.stop_event: Event | None = None
 
         self.setWindowTitle("拾米 - SD账号注册")
         self.resize(1360, 880)
@@ -458,17 +471,22 @@ class SeedanceMainWindow(QMainWindow):
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.clicked.connect(self.start_run)
 
-        self.clear_log_button = QPushButton("清空日志")
-        self.clear_log_button.setObjectName("SecondaryButton")
-        self.clear_log_button.clicked.connect(self.clear_log)
+        self.stop_button = QPushButton("打断结束")
+        self.stop_button.setObjectName("DangerButton")
+        self.stop_button.setDisabled(True)
+        self.stop_button.clicked.connect(self.stop_run)
 
         button_row.addWidget(self.start_button)
-        button_row.addWidget(self.clear_log_button)
+        button_row.addWidget(self.stop_button)
 
         tool_layout = QVBoxLayout()
         tool_layout.setSpacing(8)
         tool_layout.setContentsMargins(0, 2, 0, 0)
         layout.addLayout(tool_layout)
+
+        self.clear_log_button = QPushButton("清空日志")
+        self.clear_log_button.setObjectName("SecondaryButton")
+        self.clear_log_button.clicked.connect(self.clear_log)
 
         open_report_button = QPushButton("打开报告目录")
         open_report_button.setObjectName("SecondaryButton")
@@ -482,6 +500,7 @@ class SeedanceMainWindow(QMainWindow):
         open_log_button.setObjectName("SecondaryButton")
         open_log_button.clicked.connect(lambda: self._open_path(LOG_FILE))
 
+        tool_layout.addWidget(self.clear_log_button)
         tool_layout.addWidget(open_report_button)
         tool_layout.addWidget(open_backup_button)
         tool_layout.addWidget(open_log_button)
@@ -619,6 +638,7 @@ class SeedanceMainWindow(QMainWindow):
             debug_mode=self.debug_checkbox.isChecked(),
             notion_enabled=self.notion_checkbox.isChecked(),
             specified_email=selected_provider,
+            stop_event=self.stop_event,
         )
 
     def _ensure_notion_ready(self) -> bool:
@@ -650,6 +670,7 @@ class SeedanceMainWindow(QMainWindow):
 
     def _set_running_state(self, running: bool) -> None:
         self.start_button.setDisabled(running)
+        self.stop_button.setDisabled(not running)
         self.total_count_spin.setDisabled(running)
         self.max_workers_spin.setDisabled(running)
         self.email_combo.setDisabled(running)
@@ -658,6 +679,19 @@ class SeedanceMainWindow(QMainWindow):
         self.notion_checkbox.setDisabled(running)
         self.run_status_value.setText("执行中" if running else "待命")
 
+    def stop_run(self) -> None:
+        if not self.worker_thread or not self.worker_thread.isRunning() or not self.stop_event:
+            return
+
+        if self.stop_event.is_set():
+            return
+
+        self.stop_event.set()
+        self.stop_button.setText("等待收尾中")
+        self.stop_button.setDisabled(True)
+        self.append_log("已收到打断结束请求：不再启动新任务，正在等待进行中的线程收尾。")
+        self.run_status_value.setText("停止中")
+
     def start_run(self) -> None:
         if self.worker_thread and self.worker_thread.isRunning():
             return
@@ -665,6 +699,7 @@ class SeedanceMainWindow(QMainWindow):
         if not self._ensure_notion_ready():
             return
 
+        self.stop_event = Event()
         run_config = self._build_run_config()
         self.total_stat["value"].setText(str(run_config.total_count))
         self.success_stat["value"].setText("0")
@@ -672,6 +707,7 @@ class SeedanceMainWindow(QMainWindow):
         self.rate_stat["value"].setText("0.0%")
         self.report_path_value.setText("运行中，报告生成后会显示在这里")
         self.last_result_value.setText("任务已启动，等待批量结果...")
+        self.stop_button.setText("打断结束")
         self.append_log("=" * 60)
         self.append_log("GUI 已启动批量注册任务")
         self._set_running_state(True)
@@ -702,12 +738,18 @@ class SeedanceMainWindow(QMainWindow):
         self.report_path_value.setText(
             f"JSON: {summary.json_report_path}\nCSV: {summary.csv_report_path}"
         )
-        self.last_result_value.setText(
+        summary_text = (
             f"总计 {summary.total_count} 个任务，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.2f} 秒。"
         )
+        if summary.stop_requested:
+            summary_text = (
+                f"运行已打断，已完成 {summary.total_count} 个任务，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.2f} 秒。"
+            )
+        self.last_result_value.setText(summary_text)
         self.append_log("GUI 执行完毕，统计卡片已刷新。")
         self._set_running_state(False)
-        self.run_status_value.setText("已完成")
+        self.run_status_value.setText("已打断" if summary.stop_requested else "已完成")
+        self.stop_button.setText("打断结束")
 
     def _handle_run_failed(self, error_message: str) -> None:
         self.last_result_value.setText(f"启动失败：{error_message}")
@@ -715,6 +757,7 @@ class SeedanceMainWindow(QMainWindow):
         QMessageBox.critical(self, "执行失败", error_message)
         self._set_running_state(False)
         self.run_status_value.setText("执行失败")
+        self.stop_button.setText("打断结束")
 
     def _cleanup_worker(self) -> None:
         if self.worker:
@@ -723,6 +766,7 @@ class SeedanceMainWindow(QMainWindow):
             self.worker_thread.deleteLater()
         self.worker = None
         self.worker_thread = None
+        self.stop_event = None
 
 
 def main() -> int:

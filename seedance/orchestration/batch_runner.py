@@ -1,7 +1,7 @@
 import asyncio
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime
 
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_MAIL_HEALTH_FILE, TEMP_EMAIL_PROVIDERS
@@ -237,6 +237,7 @@ def main(
     max_workers: int = DEFAULT_MAX_WORKERS,
     specified_email: str | None = None,
     notion_enabled: bool | None = None,
+    stop_event = None,
     interactive: bool = True,
 ) -> BatchSummary:
     script_start_time = time.time()
@@ -250,6 +251,7 @@ def main(
         max_workers=max_workers,
         specified_email=specified_email,
         notion_enabled=notion_enabled,
+        stop_event=stop_event,
     )
 
     logger.info("=" * 60)
@@ -286,37 +288,77 @@ def main(
     results: list[RegistrationResult] = []
     provider_plan = _build_provider_plan(runtime_options, runtime_options.total_count)
 
+    stop_requested = False
+
+    # ================================
+    # 这里改成增量调度，配合 stop_event 实现软中断
+    # 目的: 用户点击停止后，不再继续提交新任务
+    # 边界: 已经在跑的浏览器任务仍需自然收尾，避免强杀导致脏状态
+    # ================================
     with ThreadPoolExecutor(max_workers=runtime_options.max_workers) as executor:
-        futures = []
-        for index in range(runtime_options.total_count):
-            futures.append(
-                executor.submit(
-                    run_single_registration,
-                    thread_id=index + 1,
-                    runtime_options=runtime_options,
-                    chrome_path=chrome_path,
-                    account_store=account_store,
-                    timestamp_filename=timestamp_filename,
-                    assigned_email_provider=provider_plan[index],
-                )
+        next_task_index = 0
+        running_futures: dict = {}
+
+        def _submit_next_task() -> bool:
+            nonlocal next_task_index
+            if next_task_index >= runtime_options.total_count:
+                return False
+
+            thread_id = next_task_index + 1
+            future = executor.submit(
+                run_single_registration,
+                thread_id=thread_id,
+                runtime_options=runtime_options,
+                chrome_path=chrome_path,
+                account_store=account_store,
+                timestamp_filename=timestamp_filename,
+                assigned_email_provider=provider_plan[next_task_index],
+            )
+            running_futures[future] = thread_id
+            next_task_index += 1
+            return True
+
+        for _ in range(runtime_options.max_workers):
+            if not _submit_next_task():
+                break
+
+        while running_futures:
+            done_futures, _ = wait(
+                set(running_futures.keys()),
+                timeout=0.5,
+                return_when=FIRST_COMPLETED,
             )
 
-        for index, future in enumerate(futures):
-            try:
-                results.append(future.result())
-            except Exception as exc:
-                logger.error(f"[任务{index + 1}] 获取结果失败: {exc}")
-                results.append(
-                    RegistrationResult(
-                        success=False,
-                        thread_id=index + 1,
-                        failed_step="future_result",
-                        error_message=str(exc),
-                    )
-                )
+            if runtime_options.stop_event and runtime_options.stop_event.is_set() and not stop_requested:
+                stop_requested = True
+                logger.warning("收到停止请求：不再提交新任务，等待进行中的线程收尾")
 
+            if not done_futures:
+                continue
+
+            for future in done_futures:
+                thread_id = running_futures.pop(future)
+                try:
+                    results.append(future.result())
+                except Exception as exc:
+                    logger.error(f"[任务{thread_id}] 获取结果失败: {exc}")
+                    results.append(
+                        RegistrationResult(
+                            success=False,
+                            thread_id=thread_id,
+                            failed_step="future_result",
+                            error_message=str(exc),
+                        )
+                    )
+
+                if stop_requested:
+                    continue
+
+                _submit_next_task()
+
+    completed_count = len(results)
     success_count = sum(1 for result in results if result.success)
-    fail_count = len(results) - success_count
+    fail_count = completed_count - success_count
     script_end_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     script_total_time = time.time() - script_start_time
     script_minutes = int(script_total_time // 60)
@@ -329,6 +371,8 @@ def main(
     logger.info(f"脚本总运行时间: {script_minutes}分{script_seconds}秒 ({script_total_time:.2f}秒)")
     logger.info(f"总运行次数: {runtime_options.total_count} 次")
     logger.info(f"并发线程数: {runtime_options.max_workers} 个")
+    if stop_requested:
+        logger.warning(f"本次运行被用户中断，实际完成任务数: {completed_count}")
     logger.info(f"成功: {success_count} 个")
     logger.info(f"失败: {fail_count} 个")
     if results:
@@ -344,14 +388,15 @@ def main(
     )
     logger.info("=" * 60)
     return BatchSummary(
-        total_count=runtime_options.total_count,
+        total_count=completed_count,
         success_count=success_count,
         fail_count=fail_count,
-        success_rate=round((success_count / len(results) * 100), 1) if results else 0.0,
+        success_rate=round((success_count / completed_count * 100), 1) if completed_count else 0.0,
         started_at=script_start_datetime,
         finished_at=script_end_datetime,
         duration_seconds=round(script_total_time, 2),
         json_report_path=json_report_path,
         csv_report_path=csv_report_path,
         timestamp_filename=timestamp_filename,
+        stop_requested=stop_requested,
     )

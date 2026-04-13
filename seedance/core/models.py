@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
+from threading import Event
 from typing import Optional
 
 
@@ -18,6 +19,7 @@ class RuntimeOptions:
     max_workers: int
     specified_email: Optional[str] = None
     notion_enabled: Optional[bool] = None
+    stop_event: Optional[Event] = None
 
 
 class RegistrationStep(str, Enum):
@@ -82,6 +84,7 @@ class BatchSummary:
     json_report_path: Path
     csv_report_path: Path
     timestamp_filename: str
+    stop_requested: bool = False
 
 
 @dataclass
