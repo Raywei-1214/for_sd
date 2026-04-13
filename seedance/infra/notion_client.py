@@ -3,7 +3,6 @@ import ssl
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime
 
 from seedance.core.env import get_env_value
 from seedance.core.logger import get_logger
@@ -12,17 +11,10 @@ from seedance.core.models import RegistrationResult
 logger = get_logger()
 
 NOTION_VERSION = "2022-06-28"
+DESIRED_RESULT_PROPERTY_NAMES = {"账号", "密码", "国家"}
 REQUIRED_RESULT_PROPERTIES = {
-    "结果": {"rich_text": {}},
-    "线程号": {"number": {"format": "number"}},
-    "失败步骤": {"rich_text": {}},
-    "失败原因": {"rich_text": {}},
-    "Sessionid": {"rich_text": {}},
-    "Seedance值": {"number": {"format": "number"}},
-    "邮箱站点": {"rich_text": {}},
-    "开始时间": {"rich_text": {}},
-    "结束时间": {"rich_text": {}},
-    "耗时秒": {"number": {"format": "number"}},
+    "密码": {"rich_text": {}},
+    "国家": {"rich_text": {}},
 }
 
 
@@ -46,6 +38,7 @@ class NotionClient:
         self.database_id = get_env_value("NOTION_DATABASE_ID")
         self._schema_ensured = False
         self._ssl_context = build_notion_ssl_context()
+        self._title_property_name = "账号"
 
     def is_configured(self) -> bool:
         return bool(self.token and self.database_id)
@@ -107,22 +100,52 @@ class NotionClient:
 
         database = self.get_database_metadata()
         existing_properties = database.get("properties", {})
-        missing_properties = {
-            name: schema
-            for name, schema in REQUIRED_RESULT_PROPERTIES.items()
-            if name not in existing_properties
-        }
+        patch_properties: dict[str, dict | None] = {}
+
+        title_property_name = None
+        title_property_id = None
+        for property_name, property_schema in existing_properties.items():
+            if property_schema.get("type") == "title":
+                title_property_name = property_name
+                title_property_id = property_schema.get("id")
+                break
+
+        if title_property_name:
+            self._title_property_name = title_property_name
 
         # ================================
-        # 只补缺失字段，避免每次启动重复 PATCH 污染表结构
-        # 触发条件: 数据库尚未具备目标字段
-        # 边界: 已存在的列不重建、不改名，保留人工管理空间
+        # 这里把 Notion 表强制收敛为 3 列
+        # 目的: 表结构只保留账号、密码、国家，避免继续膨胀
+        # 边界: 标题列必须保留，其他非目标列统一清理
         # ================================
-        if missing_properties:
+        if title_property_name and title_property_name != "账号" and title_property_id:
+            patch_properties[title_property_id] = {
+                "name": "账号",
+                "title": {},
+            }
+            self._title_property_name = "账号"
+
+        for name, schema in REQUIRED_RESULT_PROPERTIES.items():
+            if name not in existing_properties:
+                patch_properties[name] = schema
+
+        for property_name, property_schema in existing_properties.items():
+            if property_schema.get("type") == "title":
+                continue
+            if property_name in DESIRED_RESULT_PROPERTY_NAMES:
+                continue
+            patch_properties[property_name] = None
+
+        # ================================
+        # 这里同时做“补齐缺失字段 + 清理冗余字段”
+        # 触发条件: 表结构不满足 账号/密码/国家 三列模型
+        # 边界: 只调整当前数据库，不影响本地 txt 备份策略
+        # ================================
+        if patch_properties:
             self._request_json(
                 "PATCH",
                 f"https://api.notion.com/v1/databases/{self.database_id}",
-                payload={"properties": missing_properties},
+                payload={"properties": patch_properties},
             )
         self._schema_ensured = True
 
@@ -135,91 +158,22 @@ class NotionClient:
             f"https://api.notion.com/v1/databases/{self.database_id}",
         )
 
-    def _parse_optional_number(self, value: str | float | int | None) -> float | None:
-        if value is None or value == "":
-            return None
-
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return None
-
-    def _build_result_title(self, result: RegistrationResult) -> str:
-        if result.email:
-            return result.email
-
-        thread_suffix = f"线程{result.thread_id}" if result.thread_id is not None else "未知线程"
-        timestamp = result.finished_at or result.started_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        status = "成功" if result.success else "失败"
-        return f"{status}任务-{thread_suffix}-{timestamp}"
-
     def _build_result_properties(self, result: RegistrationResult) -> dict:
-        failure_step = result.failed_step or result.current_step or ""
-        failure_reason = result.error_message or ""
-        result_label = "成功" if result.success else "失败"
-
         return {
-            "账号": {
+            self._title_property_name: {
                 "title": [
-                    {"text": {"content": self._build_result_title(result)}}
+                    {"text": {"content": result.email or ""}}
                 ]
-            },
-            "结果": {
-                "rich_text": [
-                    {"text": {"content": result_label}}
-                ]
-            },
-            "线程号": {
-                "number": float(result.thread_id) if result.thread_id is not None else None
             },
             "密码": {
                 "rich_text": [
                     {"text": {"content": result.password or ""}}
                 ]
             },
-            "积分": {
-                "number": self._parse_optional_number(result.credits)
-            },
             "国家": {
                 "rich_text": [
                     {"text": {"content": result.country or ""}}
                 ]
-            },
-            "失败步骤": {
-                "rich_text": [
-                    {"text": {"content": failure_step}}
-                ]
-            },
-            "失败原因": {
-                "rich_text": [
-                    {"text": {"content": failure_reason}}
-                ]
-            },
-            "Sessionid": {
-                "rich_text": [
-                    {"text": {"content": result.sessionid or ""}}
-                ]
-            },
-            "Seedance值": {
-                "number": self._parse_optional_number(result.seedance_value)
-            },
-            "邮箱站点": {
-                "rich_text": [
-                    {"text": {"content": result.provider_name or ""}}
-                ]
-            },
-            "开始时间": {
-                "rich_text": [
-                    {"text": {"content": result.started_at or ""}}
-                ]
-            },
-            "结束时间": {
-                "rich_text": [
-                    {"text": {"content": result.finished_at or ""}}
-                ]
-            },
-            "耗时秒": {
-                "number": round(result.duration_seconds, 2)
             },
         }
 
@@ -239,8 +193,7 @@ class NotionClient:
             payload=payload,
         )
         logger.info(
-            "✓ 已写入 Notion: 结果=%s 线程=%s 标题=%s",
-            "成功" if result.success else "失败",
-            result.thread_id if result.thread_id is not None else "unknown",
-            self._build_result_title(result),
+            "✓ 已写入 Notion: 账号=%s 国家=%s",
+            result.email or "unknown",
+            result.country or "",
         )

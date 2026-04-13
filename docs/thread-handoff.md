@@ -20,10 +20,10 @@
 - 每次运行会额外输出 JSON/CSV 报告到 `run_reports/`
 - Windows 已补 `PyInstaller` 打包链路，mac 保持 `.command` 启动
 - 随机邮箱模式已升级为“健康度优先但不垄断”的轮盘调度
-- 成功账号已改为 Notion + 本地 txt 独立双写，任一链路失败不会阻断另一条
+- 成功账号仍保留本地 txt 备份；Notion 只接收“积分为0且带 sessionid”的成功账号
 - Notion 已切到证书链上下文，专门处理 mac Python 环境的 SSL 根证书问题
-- 失败任务现在也会写入 Notion，新增字段包含结果、线程号、失败步骤、失败原因
-- Notion schema 补齐已改为按缺失字段增量更新，避免重复生成同名列
+- 失败任务不再写入 Notion
+- Notion 表结构已收敛为 `账号 / 密码 / 国家` 3 列，并会清理冗余列
 - Windows 启动入口已切换为 PySide6 图形面板，默认参数为 200 个任务 / 2 线程 / 隐藏浏览器 / 随机邮箱 / Notion 开启
 - Windows 已补 `初始化sd环境.bat`，用于首次自动安装依赖和生成 `.env.local`
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`

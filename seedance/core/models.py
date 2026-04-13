@@ -59,7 +59,9 @@ class SaveResult:
     notion_ok: bool = False
     backup_ok: bool = False
     notion_enabled: bool = True
+    notion_skipped: bool = False
     notion_error: Optional[str] = None
+    notion_skip_reason: Optional[str] = None
     backup_error: Optional[str] = None
 
     @property
@@ -68,7 +70,7 @@ class SaveResult:
 
     @property
     def fully_synced(self) -> bool:
-        notion_ready = self.notion_ok or not self.notion_enabled
+        notion_ready = self.notion_ok or not self.notion_enabled or self.notion_skipped
         return notion_ready and self.backup_ok
 
 

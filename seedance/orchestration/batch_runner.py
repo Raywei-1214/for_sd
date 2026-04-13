@@ -48,13 +48,15 @@ def run_single_registration(
             if not save_result.success:
                 logger.error(f"[线程{thread_id}] 账号已注册成功，但 Notion 与本地备份均失败")
             elif not save_result.fully_synced:
-                if save_result.notion_enabled and not save_result.notion_ok:
+                if save_result.notion_enabled and not save_result.notion_ok and not save_result.notion_skipped:
                     logger.warning(f"[线程{thread_id}] 账号已注册成功，Notion 写入失败，但本地 txt 已保留")
-                if not save_result.backup_ok:
+                if save_result.notion_skipped and not save_result.backup_ok:
+                    logger.warning(f"[线程{thread_id}] 账号未满足 Notion 写入条件，且本地 txt 备份失败")
+                elif not save_result.backup_ok:
                     logger.warning(f"[线程{thread_id}] 账号已注册成功，Notion 已写入，但本地 txt 备份失败")
         else:
             save_result = account_store.save_failure(result)
-            if save_result.notion_enabled and not save_result.notion_ok:
+            if save_result.notion_enabled and not save_result.notion_ok and not save_result.notion_skipped:
                 logger.warning(f"[线程{thread_id}] 注册失败结果未能写入 Notion")
 
         logger.info(f"[线程{thread_id}] {'✅ 注册成功' if result.success else '❌ 注册失败'}")
