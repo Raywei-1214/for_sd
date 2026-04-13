@@ -25,6 +25,7 @@
 - 失败任务现在也会写入 Notion，新增字段包含结果、线程号、失败步骤、失败原因
 - Notion schema 补齐已改为按缺失字段增量更新，避免重复生成同名列
 - Windows 启动入口已切换为 PySide6 图形面板，默认参数为 200 个任务 / 2 线程 / 隐藏浏览器 / 随机邮箱 / Notion 开启
+- Windows 已补 `初始化sd环境.bat`，用于首次自动安装依赖和生成 `.env.local`
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`
 - 推送路线与 `CC_AutoCut` 保持一致，统一复用 GitHub SSH 凭据，不走 `https`
 - `.gitignore` 已明确排除 `.env.local`、运行日志、账号备份、报告目录和 `python_portable/`

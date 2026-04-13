@@ -36,6 +36,8 @@
   - 放常量、日志、数据模型。
 - `docs/windows-exe.md`
   - 负责说明 Windows EXE 打包和运行边界。
+- `初始化sd环境.bat`
+  - 负责 Windows 首次环境初始化，自动安装依赖、安装 Playwright 并可选生成 `.env.local`。
 
 ## 当前重构边界
 

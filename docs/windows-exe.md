@@ -17,7 +17,21 @@ Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [
 
 在 Windows 上打开项目目录，双击：
 
+- `初始化sd环境.bat`
 - `构建Windows-EXE.bat`
+
+建议顺序：
+
+1. 先运行 `初始化sd环境.bat`
+2. 再运行 `构建Windows-EXE.bat`
+
+`初始化sd环境.bat` 会自动完成：
+
+- 升级 `pip`
+- 安装 `requirements.txt`
+- 安装 `Playwright Chromium`
+- 可选生成 `.env.local`
+- 可选直接启动 `seedance_gui.py`
 
 或手动执行：
 
