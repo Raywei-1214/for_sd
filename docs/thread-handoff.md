@@ -26,6 +26,7 @@
 - Notion 表结构已收敛为 `账号 / 密码 / 国家` 3 列，并会清理冗余列
 - Windows 启动入口已切换为 PySide6 图形面板，默认参数为 200 个任务 / 2 线程 / 隐藏浏览器 / 随机邮箱 / Notion 开启
 - Windows 已补 `初始化sd环境.bat`，用于首次自动安装依赖和生成 `.env.local`
+- 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`
 - 推送路线与 `CC_AutoCut` 保持一致，统一复用 GitHub SSH 凭据，不走 `https`
 - `.gitignore` 已明确排除 `.env.local`、运行日志、账号备份、报告目录和 `python_portable/`
@@ -34,7 +35,7 @@
 
 - 注册页面仍然依赖大量弱 selector，稳定性问题还未做根因级治理
 - mac 上虽然已有启动入口和浏览器探测，但依赖安装与 Playwright 浏览器安装仍需真实机器验证
-- Windows `.bat` 启动器仍保留旧提示词逻辑，后续可考虑统一到跨平台启动脚本
+- Windows 侧仍存在初始化脚本与构建脚本两步流，后续可再评估是否合并为单一向导
 
 ## 建议新线程接续方向
 

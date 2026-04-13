@@ -25,6 +25,13 @@ Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [
 1. 先运行 `初始化sd环境.bat`
 2. 再运行 `构建Windows-EXE.bat`
 
+当前 Windows 侧只保留这两份批处理：
+
+- `初始化sd环境.bat`
+- `构建Windows-EXE.bat`
+
+旧的“一键启动”脚本和单独安装 Playwright 的脚本已移除，避免入口重复。
+
 `初始化sd环境.bat` 会自动完成：
 
 - 升级 `pip`

@@ -7,7 +7,7 @@
 ## 目录职责
 
 - `dreamina_register_playwright_usa.py`
-  - 薄入口，保留原命令调用方式，兼容既有 `.bat` 启动器。
+  - 薄入口，保留原命令调用方式，兼容 CLI 与 mac `.command` 启动。
 - `seedance/app/cli.py`
   - 处理命令行参数，调用批量调度入口。
 - `seedance/app/gui.py`
@@ -38,6 +38,8 @@
   - 负责说明 Windows EXE 打包和运行边界。
 - `初始化sd环境.bat`
   - 负责 Windows 首次环境初始化，自动安装依赖、安装 Playwright 并可选生成 `.env.local`。
+- `构建Windows-EXE.bat`
+  - 负责 Windows 构建 `sd.exe`，并自动把本机 `.env.local` 同步到 `dist/`。
 
 ## 当前重构边界
 
@@ -50,6 +52,7 @@
 - 将页面进入判定从“只看 URL/文本”提升为“优先稳定元素断言，文本兜底”。
 - Windows 支持通过 `PyInstaller` 构建为独立 `exe`。
 - Windows `exe` 启动入口已切换为 PySide6 图形面板。
+- 旧的“一键启动”批处理与单独安装 Playwright 脚本已移除，避免多入口并存。
 - mac 继续保持双击 `.command` 启动，不强推桌面壳。
 
 ## 已识别的病灶
