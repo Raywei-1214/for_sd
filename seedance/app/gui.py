@@ -197,8 +197,8 @@ QPushButton#PrimaryButton {
   background: #5D7052;
   color: #F3F4F1;
   border: 1px solid rgba(93, 112, 82, 0.68);
-  border-radius: 23px;
-  padding: 0 28px;
+  border-radius: 22px;
+  padding: 0 20px;
 }
 
 QPushButton#PrimaryButton:hover {
@@ -477,7 +477,7 @@ class SeedanceMainWindow(QMainWindow):
         self.start_button = QPushButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.start_button.setFixedSize(138, 46)
+        self.start_button.setFixedSize(116, 44)
         self.start_button.clicked.connect(self.start_run)
 
         self.stop_button = QPushButton("打断结束")
