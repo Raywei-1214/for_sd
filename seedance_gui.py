@@ -1,4 +1,4 @@
-"""Seedance 2.0 GUI 主入口。"""
+"""sd GUI 主入口。"""
 
 from seedance.app.gui import main
 

@@ -2,7 +2,7 @@
 
 ## 目标
 
-Windows 侧改为通过 `PyInstaller` 构建 `Seedance2.0.exe`，mac 继续保持双击 [启动Seedance2.0.command](/Users/yanwei/Seedance2.0/启动Seedance2.0.command:1)。
+Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [启动sd.command](/Users/yanwei/Seedance2.0/启动sd.command:1)。
 
 ## 当前方案
 
@@ -28,11 +28,11 @@ py -3 -m PyInstaller --noconfirm seedance_windows.spec
 
 构建完成后得到：
 
-- `dist\Seedance2.0.exe`
+- `dist\sd.exe`
 
 ## 运行说明
 
-- 双击 `Seedance2.0.exe` 后会直接打开图形面板
+- 双击 `sd.exe` 后会直接打开图形面板
 - 推荐目标机器安装系统 Chrome
 - 当前程序会优先探测系统 Chrome，再回退到 Playwright Chromium
 - 如果目标机器没有 Chrome，且也没有 Playwright 浏览器缓存，运行会失败

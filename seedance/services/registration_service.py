@@ -654,7 +654,7 @@ class RegistrationService:
             if result.country:
                 logger.info(f"IP国家: {result.country}")
             if result.seedance_value:
-                logger.info(f"Seedance 2.0消耗数值: {result.seedance_value}")
+                logger.info(f"sd消耗数值: {result.seedance_value}")
             if birth_date:
                 logger.info(f"出生日期: {birth_date[0]}-{birth_date[1]}-{birth_date[2]}")
             logger.info("=" * 60)

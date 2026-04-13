@@ -1,19 +1,19 @@
 @echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
-title 即梦自动注册 - 一键启动(Seedance2.0版-隐藏窗口)
+title 即梦自动注册 - 一键启动(sd版-显示窗口)
 
 cd /d "%~dp0"
 
-color 0A
+color 0B
 echo.
 echo ============================================================
-echo          即梦自动注册脚本 v6.0 Seedance 2.0专用版
+echo          即梦自动注册脚本 v6.0 sd专用版
 echo           无需安装Python，开箱即用！
-echo            【Seedance 2.0 注册 - 隐藏浏览器窗口】
+echo            【sd 注册 - 显示浏览器窗口】
 echo ============================================================
 echo.
-echo ⭐ Seedance 2.0 注册模式 ⭐
+echo ⭐ sd 注册模式 ⭐
 echo 注册URL: https://dreamina.capcut.com/ai-tool/home
 echo 优势：注册后账号有积分！
 echo.
@@ -244,30 +244,30 @@ echo.
 echo ============================================================
 echo 【确认运行配置】
 echo ============================================================
-echo   注册区域: ⭐ 美区 ⭐
+echo   注册区域: ⭐ sd ⭐
 echo   注册URL: https://dreamina.capcut.com/ai-tool/home
 echo   临时邮箱: 随机
 echo   注册数量: %TOTAL_COUNT% 个账号
 echo   并发线程: %MAX_THREADS% 个
-echo   运行模式: 隐藏浏览器（后台运行）
+echo   运行模式: 显示浏览器（可观察注册过程）
 echo   账号保存: Notion 表格 + registered_accounts_usa 本地备份
 echo ============================================================
 echo.
-echo ⚠️ 注意：多线程模式会同时打开多个浏览器（后台运行）
+echo ⚠️ 注意：多线程模式会同时打开多个浏览器窗口
 echo.
-echo ⭐ 美区注册优势：注册后账号有积分！⭐
+echo ⭐ sd 注册优势：注册后账号有积分！⭐
 echo.
 echo 按任意键开始执行...
 pause >nul
 
 echo.
 echo ========================================
-echo   开始执行美区注册任务
+echo   开始执行sd注册任务
 echo ========================================
 echo.
 
-::: 执行Python脚本（隐藏浏览器模式，多线程，随机邮箱）
-"%PY_CMD%" dreamina_register_playwright_usa.py --count %TOTAL_COUNT% --threads %MAX_THREADS%
+::: 执行Python脚本（显示浏览器模式，多线程，随机邮箱）
+"%PY_CMD%" dreamina_register_playwright_usa.py --count %TOTAL_COUNT% --threads %MAX_THREADS% --show-browser
 
 if %errorlevel% equ 0 (
     echo.

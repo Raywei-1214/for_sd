@@ -1,13 +1,13 @@
 @echo off
 setlocal enabledelayedexpansion
 chcp 65001 >nul
-title Seedance 2.0 - 构建 Windows EXE
+title sd - 构建 Windows EXE
 
 cd /d "%~dp0"
 
 echo.
 echo ============================================================
-echo   Seedance 2.0 - Windows EXE 构建器
+echo   sd - Windows EXE 构建器
 echo ============================================================
 echo.
 
@@ -43,7 +43,7 @@ if %errorlevel% neq 0 (
 
 echo.
 echo [4/4] 构建完成
-echo EXE 路径: %cd%\dist\Seedance2.0.exe
+echo EXE 路径: %cd%\dist\sd.exe
 echo.
 echo 说明:
 echo 1. 双击 EXE 后将直接打开图形面板

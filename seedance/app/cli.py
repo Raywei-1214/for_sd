@@ -9,7 +9,7 @@ logger = get_logger()
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="即梦国际版自动注册脚本 - Seedance 2.0 美区专用版 v6.8"
+        description="即梦国际版自动注册脚本 - sd 美区专用版 v6.8"
     )
     parser.add_argument("--show-browser", action="store_true", help="显示浏览器窗口")
     parser.add_argument("--headless", action="store_true", help="无头模式，不显示浏览器窗口（默认）")

@@ -30,7 +30,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name="Seedance2.0",
+    name="sd",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

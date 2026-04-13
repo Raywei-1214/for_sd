@@ -298,7 +298,7 @@ class SeedanceMainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.last_summary: BatchSummary | None = None
 
-        self.setWindowTitle("Seedance 2.0 图形面板")
+        self.setWindowTitle("sd 图形面板")
         self.resize(1360, 880)
         self.setMinimumSize(1200, 760)
         self.setStyleSheet(WINDOW_STYLESHEET)
@@ -369,7 +369,7 @@ class SeedanceMainWindow(QMainWindow):
         left_layout.setSpacing(6)
         layout.addLayout(left_layout, 7)
 
-        title = QLabel("Seedance 2.0 批量注册面板")
+        title = QLabel("sd 批量注册面板")
         title.setObjectName("Title")
         subtitle = QLabel("参考 CC_AutoCut 的 Aurora 风格，参数集中配置，日志与结果同屏查看。")
         subtitle.setObjectName("Subtitle")
