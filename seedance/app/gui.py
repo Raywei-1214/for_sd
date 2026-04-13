@@ -197,7 +197,7 @@ QPushButton#PrimaryButton {
   background: #5D7052;
   color: #F3F4F1;
   border: 1px solid rgba(93, 112, 82, 0.68);
-  border-radius: 999px;
+  border-radius: 23px;
   padding: 0 28px;
 }
 
@@ -477,7 +477,7 @@ class SeedanceMainWindow(QMainWindow):
         self.start_button = QPushButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.start_button.setFixedSize(164, 46)
+        self.start_button.setFixedSize(138, 46)
         self.start_button.clicked.connect(self.start_run)
 
         self.stop_button = QPushButton("打断结束")
@@ -550,7 +550,6 @@ class SeedanceMainWindow(QMainWindow):
         self.report_path_value = self._create_note_label("尚未生成运行报告")
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
 
-        detail_layout.addLayout(self._create_value_block("当前状态", self.run_status_value))
         detail_layout.addLayout(self._create_value_block("运行报告", self.report_path_value))
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
         return card
@@ -587,18 +586,18 @@ class SeedanceMainWindow(QMainWindow):
         card = QFrame()
         card.setObjectName("StatCard")
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(3)
-        card.setMinimumHeight(72)
+        layout.setContentsMargins(10, 7, 10, 7)
+        layout.setSpacing(1)
+        card.setFixedHeight(44)
 
         title = QLabel(title_text)
         title.setObjectName("CaptionCard")
         title.setWordWrap(True)
-        title.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         value = QLabel(value_text)
         value.setObjectName("ValueCard")
         value.setWordWrap(True)
-        value.setMinimumHeight(24)
+        value.setMinimumHeight(16)
 
         layout.addWidget(title)
         layout.addWidget(value)
