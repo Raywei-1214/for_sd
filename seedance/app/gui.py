@@ -37,7 +37,7 @@ from seedance.orchestration.batch_runner import main as run_batch
 WINDOW_STYLESHEET = """
 QWidget {
   color: #2C2C24;
-  font-family: "Nunito", "Microsoft YaHei UI", "PingFang SC", "Trebuchet MS";
+  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
   font-size: 13px;
   selection-background-color: rgba(93, 112, 82, 0.18);
 }
@@ -72,14 +72,14 @@ QFrame#StatCard {
 }
 
 QLabel#Title {
-  font-family: "Fraunces", "Georgia", "STSong";
+  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
   font-size: 34px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#SectionTitle {
-  font-family: "Fraunces", "Georgia", "STSong";
+  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
   font-size: 18px;
   font-weight: 700;
   color: #2C2C24;
@@ -91,14 +91,14 @@ QLabel#SectionNote {
 }
 
 QLabel#ValueHero {
-  font-family: "Fraunces", "Georgia", "STSong";
+  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
   font-size: 22px;
   font-weight: 700;
   color: #2C2C24;
 }
 
 QLabel#ValueCard {
-  font-family: "Fraunces", "Georgia", "STSong";
+  font-family: "YouYuan", "Arial Rounded MT Bold", "Trebuchet MS", "Microsoft YaHei UI", "PingFang SC";
   font-size: 16px;
   font-weight: 700;
   color: #2C2C24;
