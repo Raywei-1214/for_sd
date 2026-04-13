@@ -108,17 +108,6 @@ QLabel#CaptionCard {
   color: #78786C;
 }
 
-QLabel#StudioChip {
-  background: rgba(230, 220, 205, 0.86);
-  border: 1px solid rgba(193, 140, 93, 0.32);
-  border-radius: 22px;
-  padding: 8px 16px;
-  font-family: "Fraunces", "Georgia", "STSong";
-  font-size: 13px;
-  font-weight: 700;
-  color: #5D7052;
-}
-
 QCheckBox {
   spacing: 10px;
   color: #4A4A40;
@@ -311,7 +300,7 @@ class SeedanceMainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.last_summary: BatchSummary | None = None
 
-        self.setWindowTitle("拾米工作室 - SD账号批量注册")
+        self.setWindowTitle("拾米 - SD账号注册")
         self.resize(1360, 880)
         self.setMinimumSize(1200, 760)
         self.setStyleSheet(WINDOW_STYLESHEET)
@@ -379,23 +368,12 @@ class SeedanceMainWindow(QMainWindow):
 
         left_layout = QVBoxLayout()
         left_layout.setSpacing(0)
-        layout.addLayout(left_layout, 8)
+        layout.addLayout(left_layout, 1)
 
-        title = QLabel("SD账号批量注册")
+        title = QLabel("拾米 - SD账号注册")
         title.setObjectName("Title")
 
         left_layout.addWidget(title)
-
-        right_layout = QVBoxLayout()
-        right_layout.setSpacing(0)
-        layout.addLayout(right_layout, 2)
-
-        studio_chip = QLabel("拾米工作室")
-        studio_chip.setObjectName("StudioChip")
-        studio_chip.setAlignment(Qt.AlignCenter)
-        studio_chip.setTextFormat(Qt.PlainText)
-        right_layout.addWidget(studio_chip, alignment=Qt.AlignRight | Qt.AlignTop)
-        right_layout.addStretch(1)
         return card
 
     def _build_runtime_card(self) -> QFrame:
