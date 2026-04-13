@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -106,6 +107,12 @@ QLabel#ValueCard {
 QLabel#CaptionCard {
   font-size: 11px;
   color: #78786C;
+}
+
+QLabel#FieldLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #5F5F52;
 }
 
 QCheckBox {
@@ -350,11 +357,15 @@ class SeedanceMainWindow(QMainWindow):
 
         right_column = QVBoxLayout()
         right_column.setSpacing(14)
-        content_layout.addLayout(right_column, 7)
+        content_layout.addLayout(right_column, 6)
 
-        left_column.addWidget(self._build_runtime_card())
-        left_column.addWidget(self._build_summary_card())
-        left_column.addWidget(self._build_action_card())
+        runtime_card = self._build_runtime_card()
+        summary_card = self._build_summary_card()
+        action_card = self._build_action_card()
+
+        left_column.addWidget(runtime_card)
+        left_column.addWidget(summary_card)
+        left_column.addWidget(action_card)
         left_column.addStretch(1)
 
         right_column.addWidget(self._build_log_card(), 1)
@@ -378,12 +389,10 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_runtime_card(self) -> QFrame:
         card = self._create_card("运行参数", "线程限制在 1-3 之间，先保留稳定性优先。")
+        card.setMinimumWidth(430)
+        card.setMinimumHeight(320)
+        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         layout = card.layout()
-
-        grid = QGridLayout()
-        grid.setHorizontalSpacing(12)
-        grid.setVerticalSpacing(12)
-        layout.addLayout(grid)
 
         self.total_count_spin = QSpinBox()
         self.total_count_spin.setRange(1, 99999)
@@ -398,27 +407,32 @@ class SeedanceMainWindow(QMainWindow):
             self.email_combo.addItem(f"{index} - {provider['name']}", provider["name"])
         self.email_combo.addItem("7 - 随机", None)
 
+        field_layout = QVBoxLayout()
+        field_layout.setSpacing(10)
+        layout.addLayout(field_layout)
+
+        field_layout.addLayout(self._create_field_stack("注册数量", self.total_count_spin))
+        field_layout.addLayout(self._create_field_stack("并发线程", self.max_workers_spin))
+        field_layout.addLayout(self._create_field_stack("邮箱站点", self.email_combo))
+
         self.show_browser_checkbox = QCheckBox("显示浏览器窗口")
         self.debug_checkbox = QCheckBox("调试模式（保存截图）")
         self.notion_checkbox = QCheckBox("启用 Notion 同步")
 
-        grid.addWidget(self._create_field_label("注册数量"), 0, 0)
-        grid.addWidget(self.total_count_spin, 0, 1)
-        grid.addWidget(self._create_field_label("并发线程"), 1, 0)
-        grid.addWidget(self.max_workers_spin, 1, 1)
-        grid.addWidget(self._create_field_label("邮箱站点"), 2, 0)
-        grid.addWidget(self.email_combo, 2, 1)
-
         options_layout = QVBoxLayout()
-        options_layout.setSpacing(10)
+        options_layout.setSpacing(8)
+        options_layout.setContentsMargins(0, 4, 0, 0)
         options_layout.addWidget(self.show_browser_checkbox)
         options_layout.addWidget(self.debug_checkbox)
         options_layout.addWidget(self.notion_checkbox)
-        grid.addLayout(options_layout, 3, 0, 1, 2)
+        layout.addLayout(options_layout)
         return card
 
     def _build_action_card(self) -> QFrame:
         card = self._create_card("执行控制", "开始前会先做浏览器探测和 Notion 预检；运行过程中可打开报告与备份目录。")
+        card.setMinimumWidth(430)
+        card.setMinimumHeight(190)
+        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         layout = card.layout()
 
         button_row = QHBoxLayout()
@@ -460,6 +474,9 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_summary_card(self) -> QFrame:
         card = self._create_card("运行概览", "执行结束后会刷新成功率、报告路径和最近一次状态。")
+        card.setMinimumWidth(430)
+        card.setMinimumHeight(250)
+        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
         layout = card.layout()
 
         stats_grid = QGridLayout()
@@ -477,9 +494,9 @@ class SeedanceMainWindow(QMainWindow):
         stats_grid.addWidget(self.fail_stat["card"], 1, 0)
         stats_grid.addWidget(self.rate_stat["card"], 1, 1)
 
-        detail_layout = QGridLayout()
-        detail_layout.setHorizontalSpacing(12)
-        detail_layout.setVerticalSpacing(8)
+        detail_layout = QVBoxLayout()
+        detail_layout.setSpacing(10)
+        detail_layout.setContentsMargins(0, 2, 0, 0)
         layout.addLayout(detail_layout)
 
         self.run_status_value = QLabel("待命")
@@ -487,12 +504,9 @@ class SeedanceMainWindow(QMainWindow):
         self.report_path_value = self._create_note_label("尚未生成运行报告")
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
 
-        detail_layout.addWidget(self._create_field_label("当前状态"), 0, 0)
-        detail_layout.addWidget(self.run_status_value, 0, 1)
-        detail_layout.addWidget(self._create_field_label("运行报告"), 1, 0)
-        detail_layout.addWidget(self.report_path_value, 1, 1)
-        detail_layout.addWidget(self._create_field_label("结果摘要"), 2, 0)
-        detail_layout.addWidget(self.last_result_value, 2, 1)
+        detail_layout.addLayout(self._create_value_block("当前状态", self.run_status_value))
+        detail_layout.addLayout(self._create_value_block("运行报告", self.report_path_value))
+        detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
         return card
 
     def _build_log_card(self) -> QFrame:
@@ -545,7 +559,7 @@ class SeedanceMainWindow(QMainWindow):
 
     def _create_field_label(self, text: str) -> QLabel:
         label = QLabel(text)
-        label.setObjectName("SectionNote")
+        label.setObjectName("FieldLabel")
         return label
 
     def _create_note_label(self, text: str) -> QLabel:
@@ -554,6 +568,20 @@ class SeedanceMainWindow(QMainWindow):
         label.setWordWrap(True)
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
+
+    def _create_field_stack(self, label_text: str, widget: QWidget) -> QVBoxLayout:
+        layout = QVBoxLayout()
+        layout.setSpacing(6)
+        layout.addWidget(self._create_field_label(label_text))
+        layout.addWidget(widget)
+        return layout
+
+    def _create_value_block(self, label_text: str, value_widget: QWidget) -> QVBoxLayout:
+        layout = QVBoxLayout()
+        layout.setSpacing(4)
+        layout.addWidget(self._create_field_label(label_text))
+        layout.addWidget(value_widget)
+        return layout
 
     def _apply_defaults(self) -> None:
         self.total_count_spin.setValue(DEFAULT_TOTAL_COUNT)
