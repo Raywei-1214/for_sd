@@ -197,8 +197,8 @@ QPushButton#PrimaryButton {
   background: #5D7052;
   color: #F3F4F1;
   border: 1px solid rgba(93, 112, 82, 0.68);
-  border-radius: 24px;
-  padding: 0 24px;
+  border-radius: 999px;
+  padding: 0 28px;
 }
 
 QPushButton#PrimaryButton:hover {
@@ -418,7 +418,7 @@ class SeedanceMainWindow(QMainWindow):
         return card
 
     def _build_runtime_card(self) -> QFrame:
-        card = self._create_card("运行参数", "线程限制在 1-3 之间，先保留稳定性优先。")
+        card = self._create_card("运行参数")
         card.setMinimumHeight(245)
         layout = card.layout()
 
@@ -466,7 +466,7 @@ class SeedanceMainWindow(QMainWindow):
         return card
 
     def _build_action_card(self) -> QFrame:
-        card = self._create_card("执行控制", "开始前会先做浏览器探测和 Notion 预检；运行过程中可打开报告与备份目录。")
+        card = self._create_card("执行控制")
         card.setMinimumHeight(220)
         layout = card.layout()
 
@@ -477,9 +477,7 @@ class SeedanceMainWindow(QMainWindow):
         self.start_button = QPushButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.start_button.setMinimumWidth(148)
-        self.start_button.setMaximumWidth(172)
-        self.start_button.setFixedHeight(44)
+        self.start_button.setFixedSize(164, 46)
         self.start_button.clicked.connect(self.start_run)
 
         self.stop_button = QPushButton("打断结束")
@@ -523,7 +521,7 @@ class SeedanceMainWindow(QMainWindow):
         return card
 
     def _build_summary_card(self) -> QFrame:
-        card = self._create_card("运行概览", "执行结束后会刷新成功率、报告路径和最近一次状态。")
+        card = self._create_card("运行概览")
         card.setMinimumHeight(260)
         layout = card.layout()
 
