@@ -1,0 +1,247 @@
+import asyncio
+import re
+from typing import Awaitable, Callable
+
+from playwright.async_api import BrowserContext, Page
+
+from seedance.core.config import EMAIL_SCAN_SECONDS, TEMP_EMAIL_PROVIDERS, VERIFICATION_WAIT_ATTEMPTS
+from seedance.core.logger import get_logger
+from seedance.infra.temp_mail_adapters import GENERIC_TEMP_MAIL_ADAPTER, TempMailAdapter, get_temp_mail_adapter
+
+logger = get_logger()
+
+ScreenshotSaver = Callable[[Page, str], Awaitable[None]]
+
+
+class TempEmailService:
+    def __init__(
+        self,
+        thread_id: int,
+        specified_email: str | None,
+        save_screenshot: ScreenshotSaver,
+    ):
+        self.thread_id = thread_id
+        self.specified_email = specified_email
+        self.save_screenshot = save_screenshot
+        self.temp_email: str | None = None
+        self.password: str | None = None
+        self.provider_name: str | None = None
+
+    def _pick_provider(self) -> dict:
+        if self.specified_email:
+            return next(
+                (
+                    provider
+                    for provider in TEMP_EMAIL_PROVIDERS
+                    if provider["name"] == self.specified_email
+                ),
+                TEMP_EMAIL_PROVIDERS[0],
+            )
+
+        provider_index = (self.thread_id - 1) % len(TEMP_EMAIL_PROVIDERS)
+        return TEMP_EMAIL_PROVIDERS[provider_index]
+
+    def _is_valid_email(self, candidate: str | None) -> bool:
+        if not candidate:
+            return False
+
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        return re.match(email_pattern, candidate.strip()) is not None
+
+    async def _wait_for_adapter_ready(
+        self,
+        page: Page,
+        adapter: TempMailAdapter,
+    ) -> bool:
+        for _ in range(EMAIL_SCAN_SECONDS):
+            for selector in adapter.ready_selectors:
+                try:
+                    node = await page.query_selector(selector)
+                    if node and await node.is_visible():
+                        return True
+                except Exception:
+                    continue
+            await asyncio.sleep(1)
+        return False
+
+    async def _extract_email_with_adapter(
+        self,
+        page: Page,
+        adapter: TempMailAdapter,
+    ) -> str | None:
+        for selector in adapter.email_value_selectors:
+            try:
+                elements = await page.query_selector_all(selector)
+                for element in elements:
+                    value = await element.get_attribute("value")
+                    if self._is_valid_email(value):
+                        return value.strip()
+            except Exception:
+                continue
+
+        for selector in adapter.email_text_selectors:
+            try:
+                elements = await page.query_selector_all(selector)
+                for element in elements:
+                    text = (await element.inner_text()).strip()
+                    if self._is_valid_email(text):
+                        return text
+            except Exception:
+                continue
+
+        for selector, attribute_name in adapter.email_attribute_selectors:
+            try:
+                elements = await page.query_selector_all(selector)
+                for element in elements:
+                    attribute_value = await element.get_attribute(attribute_name)
+                    if self._is_valid_email(attribute_value):
+                        return attribute_value.strip()
+            except Exception:
+                continue
+
+        return None
+
+    async def _extract_email_with_generic_scan(self, page: Page) -> str | None:
+        try:
+            all_inputs = await page.query_selector_all("input")
+            for input_node in all_inputs:
+                value = await input_node.get_attribute("value")
+                if value and "search" not in value.lower() and self._is_valid_email(value):
+                    return value.strip()
+        except Exception:
+            pass
+
+        return await self._extract_email_with_adapter(page, GENERIC_TEMP_MAIL_ADAPTER)
+
+    async def _extract_email(self, page: Page, adapter: TempMailAdapter) -> str | None:
+        provider_email = await self._extract_email_with_adapter(page, adapter)
+        if provider_email:
+            return provider_email
+
+        logger.info(
+            f"[线程{self.thread_id}] 站点适配器未命中，退回通用兼容扫描: {adapter.name}"
+        )
+        return await self._extract_email_with_generic_scan(page)
+
+    def _extract_code_from_text(
+        self,
+        page_text: str,
+        adapter: TempMailAdapter,
+    ) -> str | None:
+        regex_patterns = [
+            r"verification\s+code\s+(?:is|:|：)\s*([A-Z0-9]{6})",
+            r"验证码(?:是|:|：)\s*([A-Z0-9]{6})",
+            r"code\s*(?:is|:|：)\s*([A-Z0-9]{6})",
+        ]
+
+        if adapter.verification_text_markers:
+            lowered_text = page_text.lower()
+            if not any(marker.lower() in lowered_text for marker in adapter.verification_text_markers):
+                return None
+
+        for pattern in regex_patterns:
+            match = re.search(pattern, page_text, re.IGNORECASE)
+            if match:
+                return match.group(1).upper()
+
+        return None
+
+    async def acquire_email(self, context: BrowserContext) -> tuple[Page | None, bool]:
+        try:
+            provider = self._pick_provider()
+            self.provider_name = provider["name"]
+            adapter = get_temp_mail_adapter(self.provider_name)
+            logger.info(f"[线程{self.thread_id}] 正在创建临时邮箱（{self.provider_name}）...")
+
+            page = await context.new_page()
+            page_loaded = False
+
+            # ================================
+            # 先保证邮箱页能打开，再进入页面内容扫描
+            # ================================
+            for retry_count in range(3):
+                try:
+                    if retry_count > 0:
+                        logger.info(
+                            f"[线程{self.thread_id}] 第 {retry_count + 1} 次尝试访问临时邮箱网站..."
+                        )
+                        await asyncio.sleep(3)
+
+                    await page.goto(provider["url"], timeout=120000)
+                    page_loaded = True
+                    logger.info(f"[线程{self.thread_id}] ✓ 临时邮箱页面加载成功")
+                    break
+                except Exception as exc:
+                    logger.warning(
+                        f"[线程{self.thread_id}] 临时邮箱页面加载失败 "
+                        f"({retry_count + 1}/3): {str(exc)[:100]}"
+                    )
+
+            if not page_loaded:
+                logger.error(f"[线程{self.thread_id}] 无法访问临时邮箱网站")
+                return page, False
+
+            await self.save_screenshot(page, "01_temp_email_page")
+            adapter_ready = await self._wait_for_adapter_ready(page, adapter)
+            if not adapter_ready:
+                logger.warning(f"[线程{self.thread_id}] 站点适配器等待超时，继续尝试兼容扫描")
+
+            logger.info(f"[线程{self.thread_id}] 正在通过站点适配器提取邮箱...")
+
+            for _ in range(EMAIL_SCAN_SECONDS):
+                try:
+                    self.temp_email = await self._extract_email(page, adapter)
+                except Exception:
+                    pass
+
+                if self.temp_email:
+                    break
+                await asyncio.sleep(1)
+
+            if self.temp_email and "@" in self.temp_email:
+                prefix = self.temp_email.split("@")[0][:10]
+                self.password = prefix + "Aa1!"
+                logger.info(f"[线程{self.thread_id}] ✓ 成功提取邮箱: {self.temp_email}")
+                logger.info(f"[线程{self.thread_id}] ✓ 生成密码: {self.password}")
+                await self.save_screenshot(page, "02_email_created")
+                return page, True
+
+            logger.error(f"[线程{self.thread_id}] 30秒内未检测到邮箱地址")
+            await self.save_screenshot(page, "error_email_extract_failed")
+            return page, False
+        except Exception as exc:
+            logger.error(f"[线程{self.thread_id}] 临时邮箱模块发生异常: {exc}", exc_info=True)
+            return None, False
+
+    async def wait_verification_code(self, email_page: Page) -> str | None:
+        try:
+            logger.info(f"[线程{self.thread_id}] 正在收件箱等待验证码 (最多等待60秒)...")
+            adapter = get_temp_mail_adapter(self.provider_name or "")
+            for attempt in range(VERIFICATION_WAIT_ATTEMPTS):
+                await asyncio.sleep(3)
+                try:
+                    page_text = await email_page.evaluate("() => document.body.innerText")
+                    verification_code = self._extract_code_from_text(page_text, adapter)
+                    if not verification_code and adapter.name != GENERIC_TEMP_MAIL_ADAPTER.name:
+                        verification_code = self._extract_code_from_text(
+                            page_text,
+                            GENERIC_TEMP_MAIL_ADAPTER,
+                        )
+
+                    if verification_code:
+                        logger.info(f"[线程{self.thread_id}] ✓✓✓ 成功提取到验证码: {verification_code}")
+                        await self.save_screenshot(email_page, "06_code_found")
+                        return verification_code
+
+                    if attempt > 0 and attempt % 3 == 0:
+                        logger.info(f"[线程{self.thread_id}] 强制刷新邮箱页面以获取新邮件...")
+                        await email_page.reload()
+                except Exception as exc:
+                    logger.debug(f"[线程{self.thread_id}] 提取验证码过程报错: {exc}")
+
+            logger.error(f"[线程{self.thread_id}] 超时仍未在页面上匹配到验证码")
+            await self.save_screenshot(email_page, "06_code_timeout")
+            return None
+        except Exception as exc:
+            logger.error(f"[线程{self.thread_id}] 获取验证码函数异常: {exc}")
+            return None

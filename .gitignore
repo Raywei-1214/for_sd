@@ -1,0 +1,15 @@
+.env.local
+__pycache__/
+*.pyc
+.DS_Store
+.pytest_cache/
+build/
+dist/
+python_portable/
+dreamina_register_usa.log
+debug.log
+registered_accounts_usa/
+run_reports/
+screenshots_usa/
+browser_config.json
+temp_mail_health.json

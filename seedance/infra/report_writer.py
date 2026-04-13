@@ -1,0 +1,114 @@
+import csv
+import json
+from collections import Counter
+from pathlib import Path
+
+from seedance.core.logger import get_logger
+from seedance.core.models import RegistrationResult
+
+logger = get_logger()
+
+
+def build_failure_reason(result: RegistrationResult) -> str:
+    failed_step = result.failed_step or "unknown_step"
+    error_message = result.error_message or "未记录失败原因"
+    return f"{failed_step} | {error_message}"
+
+
+class RunReportWriter:
+    def __init__(self, report_dir: Path):
+        self.report_dir = report_dir
+        self.report_dir.mkdir(parents=True, exist_ok=True)
+
+    def _build_summary(self, results: list[RegistrationResult]) -> dict:
+        success_count = sum(1 for result in results if result.success)
+        failed_results = [result for result in results if not result.success]
+        failure_counter = Counter(
+            build_failure_reason(result)
+            for result in failed_results
+        )
+
+        # ================================
+        # 汇总报告要同时服务“快速查看”和“程序读取”
+        # 因此总览、分类、明细分开保存
+        # ================================
+        return {
+            "total_count": len(results),
+            "success_count": success_count,
+            "fail_count": len(results) - success_count,
+            "success_rate": round((success_count / len(results) * 100), 1) if results else 0.0,
+            "failure_breakdown": [
+                {"reason": reason, "count": count}
+                for reason, count in failure_counter.most_common()
+            ],
+        }
+
+    def _serialize_result(self, result: RegistrationResult) -> dict:
+        return {
+            "thread_id": result.thread_id,
+            "success": result.success,
+            "current_step": result.current_step,
+            "failed_step": result.failed_step,
+            "email": result.email,
+            "provider_name": result.provider_name,
+            "sessionid": result.sessionid,
+            "credits": result.credits,
+            "country": result.country,
+            "seedance_value": result.seedance_value,
+            "duration_seconds": round(result.duration_seconds, 2),
+            "started_at": result.started_at,
+            "finished_at": result.finished_at,
+            "error_message": result.error_message,
+        }
+
+    def write(
+        self,
+        timestamp: str,
+        results: list[RegistrationResult],
+        script_start_datetime: str,
+        script_end_datetime: str,
+        script_total_seconds: float,
+    ) -> tuple[Path, Path]:
+        summary = self._build_summary(results)
+        json_path = self.report_dir / f"run_report_{timestamp}.json"
+        csv_path = self.report_dir / f"run_report_{timestamp}.csv"
+
+        json_payload = {
+            "started_at": script_start_datetime,
+            "finished_at": script_end_datetime,
+            "duration_seconds": round(script_total_seconds, 2),
+            "summary": summary,
+            "results": [self._serialize_result(result) for result in results],
+        }
+        json_path.write_text(
+            json.dumps(json_payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        with csv_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(
+                handle,
+                fieldnames=[
+                    "thread_id",
+                    "success",
+                    "current_step",
+                    "failed_step",
+                    "email",
+                    "provider_name",
+                    "sessionid",
+                    "credits",
+                    "country",
+                    "seedance_value",
+                    "duration_seconds",
+                    "started_at",
+                    "finished_at",
+                    "error_message",
+                ],
+            )
+            writer.writeheader()
+            for result in results:
+                writer.writerow(self._serialize_result(result))
+
+        logger.info(f"运行报告(JSON): {json_path}")
+        logger.info(f"运行报告(CSV): {csv_path}")
+        return json_path, csv_path

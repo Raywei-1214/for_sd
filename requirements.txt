@@ -1,0 +1,11 @@
+# Playwright版本（推荐方案，使用系统Chrome浏览器）
+playwright>=1.40.0
+
+# PySide6 图形界面
+PySide6>=6.8.0
+
+# HTTP 客户端库，用于调用 Clash API
+aiohttp>=3.9.0
+
+# Notion API 证书链，避免 mac Python 环境缺少根证书
+certifi>=2024.0.0
