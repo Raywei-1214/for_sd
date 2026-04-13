@@ -26,6 +26,7 @@ class TempEmailService:
         self.temp_email: str | None = None
         self.password: str | None = None
         self.provider_name: str | None = None
+        self._adapter_fallback_logged: set[str] = set()
 
     def _pick_provider(self) -> dict:
         if self.specified_email:
@@ -118,9 +119,16 @@ class TempEmailService:
         if provider_email:
             return provider_email
 
-        logger.info(
-            f"[线程{self.thread_id}] 站点适配器未命中，退回通用兼容扫描: {adapter.name}"
-        )
+        # ================================
+        # 适配器未命中只记录一次
+        # 目的: 避免轮询扫描时刷满日志，掩盖真正的失败信号
+        # 边界: 不影响后续继续退回通用兼容扫描
+        # ================================
+        if adapter.name not in self._adapter_fallback_logged:
+            logger.warning(
+                f"[线程{self.thread_id}] 站点适配器未命中，退回通用兼容扫描: {adapter.name}"
+            )
+            self._adapter_fallback_logged.add(adapter.name)
         return await self._extract_email_with_generic_scan(page)
 
     def _extract_code_from_text(
