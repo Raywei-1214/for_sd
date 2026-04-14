@@ -161,7 +161,7 @@ def _prompt_runtime_options(runtime_options: RuntimeOptions) -> RuntimeOptions:
             runtime_options.total_count = int(input_count)
 
         input_threads = input(
-            f"请输入并发执行的线程数 (直接回车默认 {runtime_options.max_workers}，建议1-3): "
+            f"请输入并发执行的线程数 (直接回车默认 {runtime_options.max_workers}，建议1-5): "
         ).strip()
         if input_threads:
             runtime_options.max_workers = int(input_threads)

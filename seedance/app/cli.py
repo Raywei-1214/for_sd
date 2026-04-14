@@ -19,7 +19,7 @@ def main() -> None:
         "--threads",
         type=int,
         default=DEFAULT_MAX_WORKERS,
-        help="并发线程数（默认2个，范围1-3个）",
+        help="并发线程数（默认5个，范围1-5个）",
     )
     parser.add_argument(
         "--email",
