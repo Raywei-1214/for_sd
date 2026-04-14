@@ -271,6 +271,27 @@ QTextEdit {
   font-size: 11px;
   border-radius: 34px;
 }
+
+QScrollArea QScrollBar:vertical {
+  background: transparent;
+  width: 10px;
+  margin: 8px 0 8px 0;
+}
+
+QScrollArea QScrollBar::handle:vertical {
+  background: rgba(193, 140, 93, 0.58);
+  border-radius: 5px;
+  min-height: 42px;
+}
+
+QScrollArea QScrollBar::add-line:vertical,
+QScrollArea QScrollBar::sub-line:vertical,
+QScrollArea QScrollBar::add-page:vertical,
+QScrollArea QScrollBar::sub-page:vertical {
+  background: transparent;
+  border: none;
+  height: 0px;
+}
 """
 
 logger = get_logger()
@@ -407,7 +428,7 @@ class SeedanceMainWindow(QMainWindow):
 
         left_scroll = QScrollArea()
         left_scroll.setWidgetResizable(True)
-        left_scroll.setFixedWidth(470)
+        left_scroll.setFixedWidth(486)
         left_scroll.setFrameShape(QFrame.NoFrame)
         left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         left_scroll.setLayoutDirection(Qt.RightToLeft)
@@ -418,7 +439,7 @@ class SeedanceMainWindow(QMainWindow):
         left_panel.setLayoutDirection(Qt.LeftToRight)
         left_column = QVBoxLayout(left_panel)
         left_column.setSpacing(14)
-        left_column.setContentsMargins(0, 0, 0, 0)
+        left_column.setContentsMargins(18, 0, 0, 0)
         left_scroll.setWidget(left_panel)
 
         right_panel = QWidget()
@@ -529,31 +550,38 @@ class SeedanceMainWindow(QMainWindow):
         button_row.addWidget(self.stop_button)
         button_row.addStretch(1)
 
-        tool_layout = QVBoxLayout()
-        tool_layout.setSpacing(8)
-        tool_layout.setContentsMargins(0, 2, 0, 0)
-        layout.addLayout(tool_layout)
+        tool_grid = QGridLayout()
+        tool_grid.setHorizontalSpacing(8)
+        tool_grid.setVerticalSpacing(8)
+        tool_grid.setContentsMargins(0, 2, 0, 0)
+        tool_grid.setColumnStretch(0, 1)
+        tool_grid.setColumnStretch(1, 1)
+        layout.addLayout(tool_grid)
 
         self.clear_log_button = QPushButton("清空日志")
         self.clear_log_button.setObjectName("SecondaryButton")
+        self.clear_log_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.clear_log_button.clicked.connect(self.clear_log)
 
         open_report_button = QPushButton("打开报告目录")
         open_report_button.setObjectName("SecondaryButton")
+        open_report_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         open_report_button.clicked.connect(lambda: self._open_path(REPORT_DIR))
 
         open_backup_button = QPushButton("打开账号备份")
         open_backup_button.setObjectName("SecondaryButton")
+        open_backup_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         open_backup_button.clicked.connect(lambda: self._open_path(SUCCESS_DIR))
 
         open_log_button = QPushButton("打开日志文件")
         open_log_button.setObjectName("SecondaryButton")
+        open_log_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         open_log_button.clicked.connect(lambda: self._open_path(LOG_FILE))
 
-        tool_layout.addWidget(self.clear_log_button)
-        tool_layout.addWidget(open_report_button)
-        tool_layout.addWidget(open_backup_button)
-        tool_layout.addWidget(open_log_button)
+        tool_grid.addWidget(self.clear_log_button, 0, 0)
+        tool_grid.addWidget(open_report_button, 0, 1)
+        tool_grid.addWidget(open_backup_button, 1, 0)
+        tool_grid.addWidget(open_log_button, 1, 1)
         return card
 
     def _build_summary_card(self) -> QFrame:
