@@ -367,8 +367,8 @@ class BusyAccentButton(QPushButton):
         radius = outer_rect.height() / 2
 
         glow_color = QColor(accent)
-        glow_color.setAlpha(int(140 + self._pulse_strength * 115))
-        glow_pen = QPen(glow_color, 6.8 + self._pulse_strength * 8.8)
+        glow_color.setAlpha(int(92 + self._pulse_strength * 58))
+        glow_pen = QPen(glow_color, 4.8 + self._pulse_strength * 4.4)
         painter.setPen(glow_pen)
         painter.setBrush(Qt.NoBrush)
         painter.drawRoundedRect(outer_rect, radius, radius)
@@ -379,7 +379,7 @@ class BusyAccentButton(QPushButton):
         pillar_core = QColor("#FFF4D8" if self.objectName() == "DangerButton" else "#F6FFE8")
         pillar_core.setAlpha(int(220 + self._pulse_strength * 35))
         pillar_edge = QColor(accent)
-        pillar_edge.setAlpha(int(165 + self._pulse_strength * 90))
+        pillar_edge.setAlpha(int(132 + self._pulse_strength * 46))
         ring_gradient.setColorAt(0.00, transparent)
         ring_gradient.setColorAt(0.015, pillar_edge)
         ring_gradient.setColorAt(0.04, pillar_core)
@@ -388,7 +388,7 @@ class BusyAccentButton(QPushButton):
         ring_gradient.setColorAt(0.38, transparent)
         ring_gradient.setColorAt(1.00, transparent)
 
-        ring_pen = QPen(ring_gradient, 5.6)
+        ring_pen = QPen(ring_gradient, 4.4)
         painter.setPen(ring_pen)
         painter.drawRoundedRect(outer_rect, radius, radius)
         painter.end()
@@ -967,12 +967,12 @@ class SeedanceMainWindow(QMainWindow):
 
         if button.objectName() == "DangerButton":
             base_color = QColor("#A85448")
-            alpha = int(185 + pulse * 70)
-            blur_radius = 52 + pulse * 54
+            alpha = int(145 + pulse * 36)
+            blur_radius = 38 + pulse * 28
         else:
             base_color = QColor("#5D7052")
-            alpha = int(200 + pulse * 55)
-            blur_radius = 56 + pulse * 58
+            alpha = int(155 + pulse * 30)
+            blur_radius = 42 + pulse * 30
 
         glow_color = QColor(base_color)
         glow_color.setAlpha(alpha)
