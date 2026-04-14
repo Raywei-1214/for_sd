@@ -79,6 +79,10 @@ class TempEmailService:
             guerrilla_email = await self._extract_guerrillamail_email(page)
             if guerrilla_email:
                 return guerrilla_email
+        if adapter.name == "internxt":
+            internxt_email = await self._extract_internxt_email(page)
+            if internxt_email:
+                return internxt_email
 
         for selector in adapter.email_value_selectors:
             try:
@@ -145,6 +149,32 @@ class TempEmailService:
                     return candidate
         except Exception:
             pass
+
+        return None
+
+    async def _extract_internxt_email(self, page: Page) -> str | None:
+        # ================================
+        # Internxt 当前邮箱是前端渲染后的纯文本节点
+        # 目的: 从短文本节点中提取真实邮箱，而不是继续依赖 input/readonly 结构
+        # 边界: 只扫描短文本节点，避免把整段营销文案误判成邮箱
+        # ================================
+        text_selectors = (
+            "p",
+            "span",
+            "div",
+        )
+
+        for selector in text_selectors:
+            try:
+                elements = await page.query_selector_all(selector)
+                for element in elements:
+                    text = (await element.inner_text()).strip()
+                    if len(text) > 120:
+                        continue
+                    if self._is_valid_email(text):
+                        return text
+            except Exception:
+                continue
 
         return None
 

@@ -152,6 +152,22 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
             "验证码",
         ),
     ),
+    "internxt": TempMailAdapter(
+        name="internxt",
+        ready_selectors=(
+            "button:has-text('Change email')",
+            "p",
+        ),
+        email_value_selectors=(),
+        email_text_selectors=(),
+        email_attribute_selectors=(),
+        verification_text_markers=(
+            "verification code",
+            "code is",
+            "dreamina",
+            "capcut",
+        ),
+    ),
     "guerrillamail": TempMailAdapter(
         name="guerrillamail",
         ready_selectors=(

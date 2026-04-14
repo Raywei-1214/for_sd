@@ -18,6 +18,7 @@ TEMP_EMAIL_PROVIDERS = [
     {"name": "10minutemail.net", "url": "https://10minutemail.net/"},
     {"name": "tempmail.lol", "url": "https://tempmail.lol/"},
     {"name": "crazymailing", "url": "https://www.crazymailing.com/"},
+    {"name": "internxt", "url": "https://internxt.com/temporary-email"},
     {"name": "guerrillamail", "url": "https://www.guerrillamail.com/"},
     {"name": "tempemail.cc", "url": "https://www.tempemail.cc/fr"},
 ]

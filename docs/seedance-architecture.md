@@ -119,13 +119,21 @@
   - `10minutemail.net`
   - `tempmail.lol`
   - `crazymailing`
+  - `internxt`
   - `guerrillamail`
   - `tempemail.cc`
+- `internxt` 当前已补专用提取逻辑：
+  - 页面邮箱是前端渲染后的纯文本节点
+  - 先等待 `Change email` 按钮出现
+  - 再从短文本节点中提取真实邮箱
 - `guerrillamail` 当前已补专用提取逻辑：
   - 优先读取 `#email-widget`
   - 其次读取 `input[name='show_email']`
   - 最后回退到 `#inbox-id + #gm-host-select` 组合邮箱
-- `internxt` 与 `mailpoof` 已停用，因为近期运行中持续高频命中“临时邮箱获取失败”
+- `mailpoof` 当前继续停用：
+  - 其首页需要先触发 `create/random` 才会创建邮箱
+  - 但当前真实站点在该路径返回空白页
+  - 这说明它不只是旧适配器过期，还存在站点端流程不可用问题
 
 ## 当前失败统计策略
 
