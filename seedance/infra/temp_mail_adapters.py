@@ -155,15 +155,18 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
     "guerrillamail": TempMailAdapter(
         name="guerrillamail",
         ready_selectors=(
-            "input[value*='@']",
-            "input[readonly][value*='@']",
-            "[data-clipboard-text*='@']",
+            "#email-widget",
+            "#inbox-id",
+            "#gm-host-select",
+            "input[name='show_email'][value*='@']",
         ),
         email_value_selectors=(
+            "input[name='show_email'][value*='@']",
             "input[value*='@']",
             "input[readonly][value*='@']",
         ),
         email_text_selectors=(
+            "#email-widget",
             ".email",
             ".email-address",
             "#email",

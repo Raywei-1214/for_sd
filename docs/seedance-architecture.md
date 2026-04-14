@@ -112,6 +112,10 @@
   - `crazymailing`
   - `guerrillamail`
   - `tempemail.cc`
+- `guerrillamail` 当前已补专用提取逻辑：
+  - 优先读取 `#email-widget`
+  - 其次读取 `input[name='show_email']`
+  - 最后回退到 `#inbox-id + #gm-host-select` 组合邮箱
 - `internxt` 与 `mailpoof` 已停用，因为近期运行中持续高频命中“临时邮箱获取失败”
 
 ## 当前失败统计策略
@@ -122,9 +126,21 @@
   - 分类统计：看哪类失败最多。
   - 任务明细：看具体线程失败在哪一步、用了哪个邮箱站点。
 - 运行结束后额外落盘两份报告：
+- 运行结束后额外落盘三份报告：
   - `run_reports/run_report_<timestamp>.json`
   - `run_reports/run_report_<timestamp>.csv`
   - `run_reports/notion_failures_<timestamp>.json`
+- `run_report.summary` 当前会输出：
+  - `total_count`
+  - `success_count`
+  - `fail_count`
+  - `available_count`
+  - `success_rate`
+  - `available_rate`
+  - `duration_seconds`
+  - `notion_written_count`
+  - `notion_skipped_count`
+  - `notion_failed_count`
 - 报告明细会同时记录每条任务的保存结果：
   - `notion_ok`
   - `notion_skipped`

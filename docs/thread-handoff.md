@@ -32,6 +32,8 @@
 - Windows `PyInstaller` 已关闭 `UPX`，优先降低公开 GUI 工具的误报率
 - 临时邮箱站点池已停用 `internxt`、`mailpoof`，改为启用 `guerrillamail`、`tempemail.cc`
 - `主页加载失败` 与 `临时邮箱获取失败` 已补页面上下文采样，并写入运行报告的 `failure_context`
+- `guerrillamail` 已补专用邮箱提取链路：`#email-widget -> input[name='show_email'] -> #inbox-id + #gm-host-select`
+- `run_report.summary` 已补齐 `available_count / available_rate / duration_seconds`
 - 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`
 - 推送路线与 `CC_AutoCut` 保持一致，统一复用 GitHub SSH 凭据，不走 `https`

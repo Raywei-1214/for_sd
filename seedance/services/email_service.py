@@ -70,6 +70,16 @@ class TempEmailService:
         page: Page,
         adapter: TempMailAdapter,
     ) -> str | None:
+        # ================================
+        # Guerrilla Mail 当前页面是“显示邮箱 + 收件箱 ID/域名分离”
+        # 目的: 优先读取真实展示邮箱，再退回到 inbox-id + 域名拼接
+        # 边界: 仅对 guerrillamail 生效，不污染其他站点适配器
+        # ================================
+        if adapter.name == "guerrillamail":
+            guerrilla_email = await self._extract_guerrillamail_email(page)
+            if guerrilla_email:
+                return guerrilla_email
+
         for selector in adapter.email_value_selectors:
             try:
                 elements = await page.query_selector_all(selector)
@@ -99,6 +109,42 @@ class TempEmailService:
                         return attribute_value.strip()
             except Exception:
                 continue
+
+        return None
+
+    async def _extract_guerrillamail_email(self, page: Page) -> str | None:
+        display_selectors = (
+            "#email-widget",
+            "input[name='show_email']",
+        )
+
+        for selector in display_selectors:
+            try:
+                elements = await page.query_selector_all(selector)
+                for element in elements:
+                    value = await element.get_attribute("value")
+                    if self._is_valid_email(value):
+                        return value.strip()
+
+                    text = (await element.inner_text()).strip()
+                    if self._is_valid_email(text):
+                        return text
+            except Exception:
+                continue
+
+        try:
+            inbox_node = await page.query_selector("#inbox-id")
+            domain_node = await page.query_selector("#gm-host-select")
+            if inbox_node and domain_node:
+                inbox_id = (await inbox_node.inner_text()).strip()
+                selected_domain = await domain_node.evaluate(
+                    "(node) => node.options[node.selectedIndex]?.value || ''"
+                )
+                candidate = f"{inbox_id}@{selected_domain}".strip()
+                if self._is_valid_email(candidate):
+                    return candidate
+        except Exception:
+            pass
 
         return None
 

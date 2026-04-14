@@ -1,5 +1,6 @@
 import csv
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -20,9 +21,35 @@ class RunReportWriter:
         self.report_dir = report_dir
         self.report_dir.mkdir(parents=True, exist_ok=True)
 
-    def _build_summary(self, results: list[RegistrationResult]) -> dict:
+    def _is_notion_eligible(self, result: RegistrationResult) -> bool:
+        if not result.success or not result.sessionid:
+            return False
+
+        country_text = (result.country or "").strip()
+        if "china" in country_text.lower():
+            return False
+
+        credits_text = str(result.credits or "").strip()
+        if not credits_text:
+            return False
+
+        match = re.search(r"-?\d+(?:\.\d+)?", credits_text)
+        if not match:
+            return False
+
+        try:
+            return float(match.group(0)) == 0.0
+        except ValueError:
+            return False
+
+    def _build_summary(self, results: list[RegistrationResult], script_total_seconds: float) -> dict:
         success_count = sum(1 for result in results if result.success)
         failed_results = [result for result in results if not result.success]
+        available_count = sum(
+            1
+            for result in results
+            if self._is_notion_eligible(result)
+        )
         notion_written_count = sum(1 for result in results if result.notion_ok)
         notion_skipped_count = sum(1 for result in results if result.notion_skipped)
         notion_failed_count = sum(
@@ -43,7 +70,10 @@ class RunReportWriter:
             "total_count": len(results),
             "success_count": success_count,
             "fail_count": len(results) - success_count,
+            "available_count": available_count,
             "success_rate": round((success_count / len(results) * 100), 1) if results else 0.0,
+            "available_rate": round((available_count / len(results) * 100), 1) if results else 0.0,
+            "duration_seconds": round(script_total_seconds, 2),
             "notion_written_count": notion_written_count,
             "notion_skipped_count": notion_skipped_count,
             "notion_failed_count": notion_failed_count,
@@ -126,7 +156,7 @@ class RunReportWriter:
         script_end_datetime: str,
         script_total_seconds: float,
     ) -> tuple[Path, Path, Path]:
-        summary = self._build_summary(results)
+        summary = self._build_summary(results, script_total_seconds)
         json_path = self.report_dir / f"run_report_{timestamp}.json"
         csv_path = self.report_dir / f"run_report_{timestamp}.csv"
         notion_failures_path = self.report_dir / f"notion_failures_{timestamp}.json"
