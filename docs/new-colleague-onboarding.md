@@ -269,6 +269,15 @@ GUI 默认值：
 
 这是当前规则，不是程序异常。
 
+从现在开始，也可以直接看 `run_reports/` 里的明细字段：
+
+- `notion_ok`
+- `notion_skipped`
+- `notion_error`
+- `notion_skip_reason`
+
+这样能直接区分“规则跳过”和“真正写入失败”。
+
 ## 新同事建议的接手顺序
 
 1. 先跑 `seedance_gui.py`

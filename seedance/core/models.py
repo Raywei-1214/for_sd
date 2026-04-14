@@ -52,6 +52,12 @@ class RegistrationResult:
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     error_message: Optional[str] = None
+    notion_ok: bool = False
+    notion_skipped: bool = False
+    notion_error: Optional[str] = None
+    notion_skip_reason: Optional[str] = None
+    backup_ok: bool = False
+    backup_error: Optional[str] = None
 
 
 @dataclass

@@ -114,6 +114,13 @@
 - 运行结束后额外落盘两份报告：
   - `run_reports/run_report_<timestamp>.json`
   - `run_reports/run_report_<timestamp>.csv`
+- 报告明细会同时记录每条任务的保存结果：
+  - `notion_ok`
+  - `notion_skipped`
+  - `notion_error`
+  - `notion_skip_reason`
+  - `backup_ok`
+  - `backup_error`
 
 ## 当前账号输出策略
 

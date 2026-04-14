@@ -23,6 +23,13 @@ class RunReportWriter:
     def _build_summary(self, results: list[RegistrationResult]) -> dict:
         success_count = sum(1 for result in results if result.success)
         failed_results = [result for result in results if not result.success]
+        notion_written_count = sum(1 for result in results if result.notion_ok)
+        notion_skipped_count = sum(1 for result in results if result.notion_skipped)
+        notion_failed_count = sum(
+            1
+            for result in results
+            if result.success and not result.notion_ok and not result.notion_skipped
+        )
         failure_counter = Counter(
             build_failure_reason(result)
             for result in failed_results
@@ -37,6 +44,9 @@ class RunReportWriter:
             "success_count": success_count,
             "fail_count": len(results) - success_count,
             "success_rate": round((success_count / len(results) * 100), 1) if results else 0.0,
+            "notion_written_count": notion_written_count,
+            "notion_skipped_count": notion_skipped_count,
+            "notion_failed_count": notion_failed_count,
             "failure_breakdown": [
                 {"reason": reason, "count": count}
                 for reason, count in failure_counter.most_common()
@@ -59,6 +69,12 @@ class RunReportWriter:
             "started_at": result.started_at,
             "finished_at": result.finished_at,
             "error_message": result.error_message,
+            "notion_ok": result.notion_ok,
+            "notion_skipped": result.notion_skipped,
+            "notion_error": result.notion_error,
+            "notion_skip_reason": result.notion_skip_reason,
+            "backup_ok": result.backup_ok,
+            "backup_error": result.backup_error,
         }
 
     def write(
@@ -103,6 +119,12 @@ class RunReportWriter:
                     "started_at",
                     "finished_at",
                     "error_message",
+                    "notion_ok",
+                    "notion_skipped",
+                    "notion_error",
+                    "notion_skip_reason",
+                    "backup_ok",
+                    "backup_error",
                 ],
             )
             writer.writeheader()
