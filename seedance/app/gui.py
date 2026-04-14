@@ -1,5 +1,6 @@
 import html
 import logging
+import re
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
@@ -11,11 +12,13 @@ from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDialog,
     QFrame,
     QGraphicsDropShadowEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QProgressBar,
@@ -28,6 +31,7 @@ from PySide6.QtWidgets import (
 )
 
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS
+from seedance.core.env import get_local_env_path, read_local_env_values, update_local_env_values
 from seedance.core.logger import get_logger
 from seedance.core.models import BatchProgress, BatchSummary
 from seedance.infra.notion_client import NotionClient
@@ -157,6 +161,7 @@ QCheckBox::indicator:checked {
 
 QSpinBox,
 QComboBox,
+QLineEdit,
 QTextEdit {
   background: rgba(255, 255, 255, 0.75);
   color: #2C2C24;
@@ -166,7 +171,8 @@ QTextEdit {
 }
 
 QSpinBox,
-QComboBox {
+QComboBox,
+QLineEdit {
   min-height: 30px;
 }
 
@@ -187,6 +193,7 @@ QComboBox QWidgetLineControl {
 
 QSpinBox:focus,
 QComboBox:focus,
+QLineEdit:focus,
 QTextEdit:focus {
   border: 1px solid rgba(93, 112, 82, 0.48);
 }
@@ -315,6 +322,111 @@ class WorkerStream:
 
     def flush(self) -> None:
         return None
+
+
+class NotionSettingsDialog(QDialog):
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.setWindowTitle("Notion 设置")
+        self.setModal(True)
+        self.setMinimumWidth(540)
+
+        values = read_local_env_values()
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
+
+        title = QLabel("Notion 设置")
+        title.setObjectName("SectionTitle")
+        layout.addWidget(title)
+
+        note = QLabel("支持直接粘贴数据库链接，保存时会自动提取 Database ID。留空后保存可清除当前 Notion 配置。")
+        note.setObjectName("SectionNote")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        token_label = QLabel("集成密钥")
+        token_label.setObjectName("FieldLabel")
+        layout.addWidget(token_label)
+
+        self.token_input = QLineEdit()
+        self.token_input.setPlaceholderText("ntn_xxx")
+        self.token_input.setText(values.get("NOTION_TOKEN", ""))
+        self.token_input.setEchoMode(QLineEdit.PasswordEchoOnEdit)
+        layout.addWidget(self.token_input)
+
+        database_label = QLabel("数据库链接或 Database ID")
+        database_label.setObjectName("FieldLabel")
+        layout.addWidget(database_label)
+
+        self.database_input = QLineEdit()
+        self.database_input.setPlaceholderText("https://www.notion.so/... 或 32 位 Database ID")
+        self.database_input.setText(values.get("NOTION_DATABASE_ID", ""))
+        layout.addWidget(self.database_input)
+
+        self.path_note = QLabel(f"保存位置：{get_local_env_path()}")
+        self.path_note.setObjectName("SectionNote")
+        self.path_note.setWordWrap(True)
+        layout.addWidget(self.path_note)
+
+        button_row = QHBoxLayout()
+        button_row.setSpacing(8)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        self.cancel_button = QPushButton("取消")
+        self.cancel_button.setObjectName("SecondaryButton")
+        self.cancel_button.clicked.connect(self.reject)
+
+        self.save_button = QPushButton("保存设置")
+        self.save_button.setObjectName("PrimaryButton")
+        self.save_button.clicked.connect(self._handle_save)
+
+        button_row.addWidget(self.cancel_button)
+        button_row.addWidget(self.save_button)
+
+        self.saved_token: str | None = None
+        self.saved_database_id: str | None = None
+
+    def _handle_save(self) -> None:
+        token = self.token_input.text().strip()
+        raw_database = self.database_input.text().strip()
+
+        if bool(token) != bool(raw_database):
+            QMessageBox.warning(self, "信息不完整", "集成密钥和数据库链接/ID 需要一起填写，或者一起留空。")
+            return
+
+        database_id = normalize_notion_database_id(raw_database) if raw_database else None
+        if raw_database and not database_id:
+            QMessageBox.warning(self, "Database ID 无法识别", "请粘贴正确的 Notion 数据库链接，或直接输入 32 位 Database ID。")
+            return
+
+        update_local_env_values(
+            {
+                "NOTION_TOKEN": token or None,
+                "NOTION_DATABASE_ID": database_id,
+            }
+        )
+        self.saved_token = token or None
+        self.saved_database_id = database_id
+        self.accept()
+
+
+def normalize_notion_database_id(value: str) -> str | None:
+    # ================================
+    # 统一解析 Notion 数据库标识
+    # 目的: 支持用户直接粘贴数据库链接
+    # 边界: 仅接受 32 位十六进制 ID，自动去掉连字符
+    # ================================
+    raw = value.strip()
+    if not raw:
+        return None
+
+    match = re.search(r"([0-9a-fA-F]{32})", raw.replace("-", ""))
+    if not match:
+        return None
+    return match.group(1).lower()
 
 
 class BatchWorker(QObject):
@@ -476,10 +588,17 @@ class SeedanceMainWindow(QMainWindow):
         self.open_log_button.setMinimumWidth(120)
         self.open_log_button.clicked.connect(lambda: self._open_path(LOG_FILE))
 
+        self.notion_settings_button = QPushButton("Notion 设置")
+        self.notion_settings_button.setObjectName("SecondaryButton")
+        self.notion_settings_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.notion_settings_button.setMinimumWidth(120)
+        self.notion_settings_button.clicked.connect(self.open_notion_settings)
+
         tools_layout.addWidget(self.clear_log_button, 0, 0)
         tools_layout.addWidget(self.open_report_button, 0, 1)
-        tools_layout.addWidget(self.open_backup_button, 1, 0)
-        tools_layout.addWidget(self.open_log_button, 1, 1)
+        tools_layout.addWidget(self.open_backup_button, 0, 2)
+        tools_layout.addWidget(self.open_log_button, 1, 0)
+        tools_layout.addWidget(self.notion_settings_button, 1, 1)
         return card
 
     def _build_runtime_card(self) -> QFrame:
@@ -823,6 +942,27 @@ class SeedanceMainWindow(QMainWindow):
     def _open_path(self, path) -> None:
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
+    def open_notion_settings(self) -> None:
+        dialog = NotionSettingsDialog(self)
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        if dialog.saved_token and dialog.saved_database_id:
+            self.notion_checkbox.setChecked(True)
+            self.append_log(f"Notion 设置已保存：{get_local_env_path()}")
+            try:
+                NotionClient().get_database_metadata()
+                self.append_log("Notion 设置校验成功。")
+                QMessageBox.information(self, "保存成功", "Notion 设置已保存并通过连接校验。")
+            except Exception as exc:
+                self.append_log(f"Notion 设置已保存，但连接校验失败：{exc}")
+                QMessageBox.warning(self, "已保存但未连通", f"Notion 设置已写入配置文件，但当前连接校验失败：\n{exc}")
+            return
+
+        self.notion_checkbox.setChecked(False)
+        self.append_log("Notion 设置已清除，后续运行将仅保留本地备份。")
+        QMessageBox.information(self, "设置已清除", "Notion 配置已清除。")
+
     def _build_run_config(self) -> GuiRunConfig:
         selected_provider = self.email_combo.currentData()
         return GuiRunConfig(
@@ -871,6 +1011,7 @@ class SeedanceMainWindow(QMainWindow):
         self.show_browser_checkbox.setDisabled(running)
         self.debug_checkbox.setDisabled(running)
         self.notion_checkbox.setDisabled(running)
+        self.notion_settings_button.setDisabled(running)
         self.run_status_value.setText("执行中" if running else "待命")
 
     def stop_run(self) -> None:

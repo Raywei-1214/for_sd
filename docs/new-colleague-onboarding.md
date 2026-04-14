@@ -72,7 +72,14 @@ cd Seedance2.0
 
 ### 2. 配置 Notion
 
-如果需要启用 Notion，同目录准备 `.env.local`：
+如果需要启用 Notion，推荐直接在 GUI 右上角点击 `Notion 设置`：
+
+- 输入 `Notion Token`
+- 粘贴数据库链接
+- 程序会自动提取 `Database ID`
+- 保存后自动写入同目录 `.env.local`
+
+也可以手工准备 `.env.local`：
 
 ```env
 NOTION_TOKEN=你的 Notion Token
@@ -143,7 +150,9 @@ python3 -m playwright install chromium
 
 ### 2. 配置 Notion（可选）
 
-项目根目录创建：
+推荐先启动 GUI，点击右上角 `Notion 设置` 直接填写。
+
+如果你更习惯手工方式，也可以在项目根目录创建：
 
 ```env
 NOTION_TOKEN=你的 Notion Token
