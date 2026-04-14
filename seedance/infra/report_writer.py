@@ -96,6 +96,7 @@ class RunReportWriter:
                 {
                     "thread_id": result.thread_id,
                     "email": result.email,
+                    "password": result.password,
                     "provider_name": result.provider_name,
                     "sessionid": result.sessionid,
                     "credits": result.credits,

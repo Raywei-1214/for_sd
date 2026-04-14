@@ -931,10 +931,36 @@ class SeedanceMainWindow(QMainWindow):
         return "#3A392F"
 
     def append_log(self, message: str) -> None:
+        self.append_colored_log(message, self._get_log_color(message))
+
+    def append_colored_log(self, message: str, color: str) -> None:
         safe_message = html.escape(message)
-        color = self._get_log_color(message)
         self.log_view.append(f'<span style="color: {color};">{safe_message}</span>')
         self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
+
+    def _append_notion_failure_summary(self, notion_failures_path: Path) -> None:
+        try:
+            payload = __import__("json").loads(notion_failures_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            self.append_colored_log(f"未能读取 Notion 失败清单: {exc}", "#A85448")
+            return
+
+        failures = payload.get("failures", [])
+        if not failures:
+            return
+
+        self.append_colored_log("=" * 60, "#A85448")
+        self.append_colored_log("以下账号未成功写入 Notion，请优先补写：", "#A85448")
+        for item in failures:
+            email = item.get("email") or "unknown"
+            password = item.get("password") or "unknown"
+            country = item.get("country") or "unknown"
+            notion_error = item.get("notion_error") or "未记录 Notion 错误"
+            self.append_colored_log(
+                f"账号={email}  密码={password}  国家={country}  错误={notion_error}",
+                "#A85448",
+            )
+        self.append_colored_log("=" * 60, "#A85448")
 
     def clear_log(self) -> None:
         self.log_view.clear()
@@ -1100,6 +1126,7 @@ class SeedanceMainWindow(QMainWindow):
             )
         self.last_result_value.setText(summary_text)
         self.append_log("GUI 执行完毕，统计卡片已刷新。")
+        self._append_notion_failure_summary(summary.notion_failures_path)
         self._set_running_state(False)
         self.start_button.setText("开始执行")
         self._set_button_busy_state(self.start_button, False)
