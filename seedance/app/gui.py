@@ -279,7 +279,7 @@ QScrollArea QScrollBar:vertical {
 }
 
 QScrollArea QScrollBar::handle:vertical {
-  background: rgba(120, 120, 120, 0.22);
+  background: rgba(120, 120, 120, 0.16);
   border-radius: 4px;
   min-height: 42px;
 }
@@ -426,18 +426,23 @@ class SeedanceMainWindow(QMainWindow):
         content_layout.setSpacing(14)
         root_layout.addLayout(content_layout, 1)
 
+        left_shell = QFrame()
+        left_shell.setObjectName("Card")
+        left_shell.setFixedWidth(500)
+        left_shell.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+        left_shell_layout = QVBoxLayout(left_shell)
+        left_shell_layout.setContentsMargins(10, 10, 10, 10)
+        left_shell_layout.setSpacing(0)
+        content_layout.addWidget(left_shell, 0)
+
         left_scroll = QScrollArea()
         left_scroll.setWidgetResizable(True)
-        left_scroll.setFixedWidth(492)
         left_scroll.setFrameShape(QFrame.NoFrame)
         left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        left_scroll.setLayoutDirection(Qt.RightToLeft)
-        left_scroll.setViewportMargins(16, 0, 0, 0)
         left_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        content_layout.addWidget(left_scroll, 0)
+        left_shell_layout.addWidget(left_scroll)
 
         left_panel = QWidget()
-        left_panel.setLayoutDirection(Qt.LeftToRight)
         left_column = QVBoxLayout(left_panel)
         left_column.setSpacing(14)
         left_column.setContentsMargins(0, 0, 0, 0)
