@@ -45,7 +45,7 @@ echo.
 echo.
 echo [4/4] 同步运行配置...
 if exist ".env.local" (
-    copy /y ".env.local" "dist\\.env.local" >nul
+    copy /y ".env.local" "dist\.env.local" >nul
     if %errorlevel% neq 0 (
         echo [×] .env.local 复制到 dist 失败
         pause
@@ -55,7 +55,7 @@ if exist ".env.local" (
 ) else (
     echo [!] 未找到 .env.local，sd.exe 运行时将无法连接 Notion
     if exist ".env.local.example" (
-        copy /y ".env.local.example" "dist\\.env.local.example" >nul
+        copy /y ".env.local.example" "dist\.env.local.example" >nul
         echo [i] 已将 .env.local.example 复制到 dist 目录，便于后续填写
     )
 )

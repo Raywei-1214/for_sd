@@ -21,9 +21,9 @@
 - `seedance/services/email_service.py`
   - 负责临时邮箱获取与验证码提取。
 - `seedance/infra/browser_detector.py`
-  - 负责浏览器配置读写与跨平台本地浏览器探测。
+  - 负责浏览器配置读写与跨平台本地浏览器探测，并在 Windows GUI 模式下避免 `where chrome` 弹黑窗。
 - `seedance/infra/browser_factory.py`
-  - 负责创建 Playwright browser/context。
+  - 负责创建 Playwright browser/context，并收敛高风险启动参数。
 - `seedance/infra/account_store.py`
   - 负责线程安全地写入成功账号，按 “Notion + 本地 txt” 独立双写。
 - `seedance/infra/temp_mail_adapters.py`
@@ -52,6 +52,7 @@
 - 将页面进入判定从“只看 URL/文本”提升为“优先稳定元素断言，文本兜底”。
 - Windows 支持通过 `PyInstaller` 构建为独立 `exe`。
 - Windows `exe` 启动入口已切换为 PySide6 图形面板。
+- Windows 构建已关闭 `UPX`，优先降低公开分发场景下的误报率。
 - 旧的“一键启动”批处理与单独安装 Playwright 脚本已移除，避免多入口并存。
 - mac 继续保持双击 `.command` 启动，不强推桌面壳。
 
@@ -61,6 +62,7 @@
 - 页面稳定性问题被大量 `sleep + 模糊 selector + except: pass` 掩盖。
 - 原实现把 `_timestamp_filename`、`_specified_email`、`_ip_country` 作为类变量共享，不适合并发。
 - 旧实现只偏向 Windows，`where chrome`、`.bat`、便携 Python 都不适合 mac。
+- GUI 打包场景下若继续使用 `print()` 和有窗口的子进程调用，会带来黑窗闪烁和日志丢失风险。
 
 ## 当前流程状态机
 
@@ -147,6 +149,7 @@
 
 - Windows：
   - `sd.exe` 直接打开 PySide6 图形面板。
+  - 浏览器探测和运行日志统一走 logger，不再依赖 `print()`。
   - 参数面板默认值：
     - 注册数量 `999`
     - 并发线程 `5`

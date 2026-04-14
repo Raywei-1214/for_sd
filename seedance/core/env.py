@@ -44,7 +44,10 @@ def update_local_env_values(updates: dict[str, str | None]) -> None:
 
     env_path = get_local_env_path()
     lines = [f"{key}={values[key]}" for key in sorted(values)]
-    env_path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    content = "\n".join(lines) + ("\n" if lines else "")
+    temp_path = env_path.with_name(f"{env_path.name}.tmp")
+    temp_path.write_text(content, encoding="utf-8")
+    os.replace(temp_path, env_path)
 
 
 def load_local_env() -> None:

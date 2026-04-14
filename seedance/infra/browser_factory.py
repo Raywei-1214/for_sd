@@ -7,13 +7,9 @@ logger = get_logger()
 
 def build_launch_args(headless: bool) -> list[str]:
     launch_args = [
-        "--no-sandbox",
-        "--disable-dev-shm-usage",
         "--disable-blink-features=AutomationControlled",
         "--disable-infobars",
         "--disable-extensions",
-        "--disable-gpu",
-        "--disable-web-security",
         "--disable-features=IsolateOrigins,site-per-process",
     ]
 

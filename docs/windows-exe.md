@@ -16,6 +16,10 @@ Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [
 - 运行目录策略：
   - 开发态使用项目根目录
   - 打包后使用 `exe` 所在目录
+- Windows 稳定性策略：
+  - `where chrome` 会以无黑窗模式执行，避免 GUI 版 `sd.exe` 闪出命令行窗口
+  - `.env.local` 改为原子写入，降低被杀软或同步盘占用时写坏配置的概率
+  - `PyInstaller` 已关闭 `UPX`，优先降低 Defender / 360 的误报率
 
 ## 构建步骤
 
@@ -49,6 +53,7 @@ Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [
 - 构建 `dist\sd.exe`
 - 如果项目根目录存在 `.env.local`，自动复制到 `dist\`
 - 如果项目根目录不存在 `.env.local`，自动复制 `.env.local.example` 到 `dist\`
+- 保持 `UPX` 关闭，避免压缩后的 GUI `exe` 提高误报率
 
 或手动执行：
 
@@ -67,6 +72,7 @@ py -3 -m PyInstaller --noconfirm seedance_windows.spec
 - 推荐目标机器安装系统 Chrome
 - 当前程序会优先探测系统 Chrome，再回退到 Playwright Chromium
 - 如果目标机器没有 Chrome，且也没有 Playwright 浏览器缓存，运行会失败
+- 当前浏览器启动参数已收敛到反自动化相关参数，不再保留 `--disable-web-security` 这类高风险参数
 - 图形面板默认值：
   - 注册数量：`999`
   - 并发线程：`5`
