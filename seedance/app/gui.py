@@ -714,7 +714,7 @@ class SeedanceMainWindow(QMainWindow):
         self.email_combo = QComboBox()
         for index, provider in enumerate(TEMP_EMAIL_PROVIDERS, start=1):
             self.email_combo.addItem(f"{index} - {provider['name']}", provider["name"])
-        self.email_combo.addItem("7 - 随机", None)
+        self.email_combo.addItem(f"{len(TEMP_EMAIL_PROVIDERS) + 1} - 随机", None)
         self.email_combo.setFixedHeight(34)
 
         form_grid = QGridLayout()
