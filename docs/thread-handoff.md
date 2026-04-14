@@ -24,7 +24,7 @@
 - Notion 已切到证书链上下文，专门处理 mac Python 环境的 SSL 根证书问题
 - 失败任务不再写入 Notion
 - Notion 表结构已收敛为 `账号 / 密码 / 国家 / 注册时间 / 邮箱站点` 5 列，并会清理冗余列
-- Windows 启动入口已切换为 PySide6 图形面板，默认参数为 200 个任务 / 5 线程 / 隐藏浏览器 / 随机邮箱 / Notion 开启
+- Windows 启动入口已切换为 PySide6 图形面板，默认参数为 999 个任务 / 5 线程 / 隐藏浏览器 / 随机邮箱 / Notion 开启
 - Windows 已补 `初始化sd环境.bat`，用于首次自动安装依赖和生成 `.env.local`
 - 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`

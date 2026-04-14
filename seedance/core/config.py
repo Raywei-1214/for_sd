@@ -22,7 +22,7 @@ TEMP_EMAIL_PROVIDERS = [
     {"name": "crazymailing", "url": "https://www.crazymailing.com/"},
 ]
 
-DEFAULT_TOTAL_COUNT = 200
+DEFAULT_TOTAL_COUNT = 999
 DEFAULT_MAX_WORKERS = 5
 MIN_WORKERS = 1
 MAX_WORKERS = 5

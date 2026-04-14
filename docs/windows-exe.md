@@ -68,7 +68,7 @@ py -3 -m PyInstaller --noconfirm seedance_windows.spec
 - 当前程序会优先探测系统 Chrome，再回退到 Playwright Chromium
 - 如果目标机器没有 Chrome，且也没有 Playwright 浏览器缓存，运行会失败
 - 图形面板默认值：
-  - 注册数量：`200`
+  - 注册数量：`999`
   - 并发线程：`5`
   - 浏览器模式：隐藏
   - 邮箱站点：`7 - 随机`

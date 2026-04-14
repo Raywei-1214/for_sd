@@ -14,7 +14,7 @@ def main() -> None:
     parser.add_argument("--show-browser", action="store_true", help="显示浏览器窗口")
     parser.add_argument("--headless", action="store_true", help="无头模式，不显示浏览器窗口（默认）")
     parser.add_argument("--debug", action="store_true", help="调试模式，保存截图")
-    parser.add_argument("--count", type=int, default=DEFAULT_TOTAL_COUNT, help="总运行次数（默认200次）")
+    parser.add_argument("--count", type=int, default=DEFAULT_TOTAL_COUNT, help="总运行次数（默认999次）")
     parser.add_argument(
         "--threads",
         type=int,

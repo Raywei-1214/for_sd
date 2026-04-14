@@ -475,19 +475,16 @@ class SeedanceMainWindow(QMainWindow):
         self.email_combo.setFixedHeight(34)
 
         form_grid = QGridLayout()
-        form_grid.setHorizontalSpacing(10)
+        form_grid.setHorizontalSpacing(8)
         form_grid.setVerticalSpacing(8)
         form_grid.setColumnStretch(0, 1)
         form_grid.setColumnStretch(1, 1)
         form_grid.setColumnStretch(2, 1)
         layout.addLayout(form_grid)
 
-        form_grid.addWidget(self._create_field_label("注册数量"), 0, 0)
-        form_grid.addWidget(self._create_field_label("并发线程数"), 0, 1)
-        form_grid.addWidget(self._create_field_label("邮箱站点"), 0, 2)
-        form_grid.addWidget(self.total_count_spin, 1, 0)
-        form_grid.addWidget(self.max_workers_spin, 1, 1)
-        form_grid.addWidget(self.email_combo, 1, 2)
+        form_grid.addWidget(self._create_input_card("注册数量", self.total_count_spin), 0, 0)
+        form_grid.addWidget(self._create_input_card("并发线程数", self.max_workers_spin), 0, 1)
+        form_grid.addWidget(self._create_input_card("邮箱站点", self.email_combo), 0, 2)
 
         self.show_browser_checkbox = QCheckBox("显示浏览器窗口")
         self.debug_checkbox = QCheckBox("调试模式（保存截图）")
@@ -591,7 +588,9 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat("0 / %m")
 
-        self.progress_detail_value = self._create_note_label("已完成 0 / 200，运行中 0，待开始 200")
+        self.progress_detail_value = self._create_note_label(
+            f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}"
+        )
         self.run_status_value = QLabel("待命")
         self.run_status_value.setObjectName("ValueHero")
         self.report_path_value = self._create_note_label("尚未生成运行报告")
@@ -651,6 +650,23 @@ class SeedanceMainWindow(QMainWindow):
         layout.addWidget(title)
         layout.addWidget(value)
         return {"card": card, "value": value}
+
+    def _create_input_card(self, title_text: str, input_widget: QWidget) -> QFrame:
+        card = QFrame()
+        card.setObjectName("StatCard")
+        layout = QVBoxLayout(card)
+        layout.setContentsMargins(10, 7, 10, 7)
+        layout.setSpacing(5)
+        card.setFixedHeight(74)
+
+        title = QLabel(title_text)
+        title.setObjectName("CaptionCard")
+        title.setWordWrap(True)
+        title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        layout.addWidget(title)
+        layout.addWidget(input_widget)
+        return card
 
     def _create_field_label(self, text: str) -> QLabel:
         label = QLabel(text)
