@@ -79,7 +79,7 @@ py -3 -m PyInstaller --noconfirm seedance_windows.spec
   - 注册数量：`999`
   - 并发线程：`5`
   - 浏览器模式：隐藏
-  - 邮箱站点：`7 - 随机`
+  - 邮箱站点：`动态随机`
   - Notion：开启
 - 若启动前 Notion 无法连通，会提示是否关闭 Notion 后继续
 

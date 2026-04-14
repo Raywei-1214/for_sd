@@ -28,6 +28,42 @@ class TempEmailService:
         self.provider_name: str | None = None
         self._adapter_fallback_logged: set[str] = set()
 
+    async def _get_body_text(self, page: Page) -> str:
+        try:
+            return await page.evaluate("() => document.body?.innerText || ''")
+        except Exception:
+            return ""
+
+    async def _is_timeout_error_page(self, page: Page) -> bool:
+        body_text = await self._get_body_text(page)
+        lowered_text = body_text.lower()
+        current_url = (page.url or "").lower()
+        return current_url.startswith("chrome-error://") or any(
+            marker in lowered_text
+            for marker in (
+                "err_connection_timed_out",
+                "this site can’t be reached",
+                "this site can't be reached",
+                "took too long to respond",
+            )
+        )
+
+    async def _wait_for_tempmail_email_ready(self, page: Page, adapter: TempMailAdapter) -> None:
+        # ================================
+        # tempmail.lol 会先展示 Loading...，之后才真正生成邮箱
+        # 目的: 等待真实邮箱出现，而不是把占位文本误当成页面已准备好
+        # 边界: 仅对 tempmail.lol 生效，不改变其他站点的扫描节奏
+        # ================================
+        for _ in range(15):
+            extracted_email = await self._extract_email_with_adapter(page, adapter)
+            if extracted_email:
+                return
+
+            body_text = await self._get_body_text(page)
+            if "loading..." not in body_text.lower():
+                return
+            await asyncio.sleep(1)
+
     def _pick_provider(self) -> dict:
         if self.specified_email:
             return next(
@@ -251,7 +287,19 @@ class TempEmailService:
                         )
                         await asyncio.sleep(3)
 
-                    await page.goto(provider["url"], timeout=120000)
+                    await page.goto(
+                        provider["url"],
+                        timeout=150000,
+                        wait_until="domcontentloaded",
+                    )
+                    await asyncio.sleep(2)
+
+                    if self.provider_name == "10minutemail.net" and await self._is_timeout_error_page(page):
+                        logger.warning(
+                            f"[线程{self.thread_id}] 10minutemail.net 返回超时错误页，准备重试"
+                        )
+                        continue
+
                     page_loaded = True
                     logger.info(f"[线程{self.thread_id}] ✓ 临时邮箱页面加载成功")
                     break
@@ -269,6 +317,9 @@ class TempEmailService:
             adapter_ready = await self._wait_for_adapter_ready(page, adapter)
             if not adapter_ready:
                 logger.warning(f"[线程{self.thread_id}] 站点适配器等待超时，继续尝试兼容扫描")
+
+            if self.provider_name == "tempmail.lol":
+                await self._wait_for_tempmail_email_ready(page, adapter)
 
             logger.info(f"[线程{self.thread_id}] 正在通过站点适配器提取邮箱...")
 

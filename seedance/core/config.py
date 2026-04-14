@@ -17,7 +17,6 @@ TEMP_EMAIL_PROVIDERS = [
     {"name": "mail.tm", "url": "https://mail.tm/zh/"},
     {"name": "10minutemail.net", "url": "https://10minutemail.net/"},
     {"name": "tempmail.lol", "url": "https://tempmail.lol/"},
-    {"name": "crazymailing", "url": "https://www.crazymailing.com/"},
     {"name": "internxt", "url": "https://internxt.com/temporary-email"},
     {"name": "guerrillamail", "url": "https://www.guerrillamail.com/"},
     {"name": "tempemail.cc", "url": "https://www.tempemail.cc/fr"},
@@ -109,14 +108,27 @@ NEXT_BUTTON_SELECTORS = (
     "button[class*='next']",
 )
 
-YEAR_INPUT_SELECTOR = "input[placeholder='Year']"
+YEAR_INPUT_SELECTORS = (
+    "input[placeholder='Year']",
+    "input[aria-label*='Year' i]",
+    "input[name*='year' i]",
+    "input[autocomplete='bday-year']",
+    "input[inputmode='numeric'][maxlength='4']",
+)
+YEAR_INPUT_SELECTOR = YEAR_INPUT_SELECTORS[0]
 MONTH_SELECT_SELECTORS = (
     "div.lv-select-view:has-text('Month')",
     "div[placeholder='Month']",
+    "div[role='combobox']:has-text('Month')",
+    "div[aria-label*='Month' i]",
+    "input[placeholder='Month']",
 )
 DAY_SELECT_SELECTORS = (
     "div.lv-select-view:has-text('Day')",
     "div[placeholder='Day']",
+    "div[role='combobox']:has-text('Day')",
+    "div[aria-label*='Day' i]",
+    "input[placeholder='Day']",
 )
 MONTH_OPTION_TEMPLATE_SELECTORS = (
     "div.lv-select-option:text-is('{value}')",
@@ -129,6 +141,14 @@ DAY_OPTION_TEMPLATE_SELECTORS = (
 PROFILE_READY_SELECTORS = (
     YEAR_INPUT_SELECTOR,
 ) + MONTH_SELECT_SELECTORS + DAY_SELECT_SELECTORS
+PROFILE_READY_TEXT_MARKERS = (
+    "year",
+    "month",
+    "day",
+    "birth",
+    "birthday",
+    "date of birth",
+)
 
 CONFIRMATION_BODY_TEXT = "confirm"
 LOGIN_RELATED_URL_SEGMENTS = ("login", "signup")

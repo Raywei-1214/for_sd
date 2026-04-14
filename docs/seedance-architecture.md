@@ -101,6 +101,7 @@
 - 注册表单页：等待邮箱输入框与密码输入框出现。
 - 验证码页：优先等待验证码输入相关元素，文本 `confirm / verification code / 验证码` 作为兜底。
 - 资料页：等待 `Year / Month / Day` 相关表单元素出现。
+- 资料页：等待 `Year / Month / Day` 相关稳定元素，文本 `year / month / day / birthday` 作为兜底，并在失败时采集页面上下文。
 - 成功页：要求同时避开 `login/signup` URL，并等待积分区、生成按钮、菜单区等稳定元素之一出现。
 
 ## 当前邮箱适配策略
@@ -118,10 +119,12 @@
   - `mail.tm`
   - `10minutemail.net`
   - `tempmail.lol`
-  - `crazymailing`
   - `internxt`
   - `guerrillamail`
   - `tempemail.cc`
+- `crazymailing` 当前已停用：
+  - 多次命中 Cloudflare 安全验证页
+  - 当前主要问题是风控，不是单纯 selector 失效
 - `internxt` 当前已补专用提取逻辑：
   - 页面邮箱是前端渲染后的纯文本节点
   - 先等待 `Change email` 按钮出现
@@ -134,6 +137,12 @@
   - 其首页需要先触发 `create/random` 才会创建邮箱
   - 但当前真实站点在该路径返回空白页
   - 这说明它不只是旧适配器过期，还存在站点端流程不可用问题
+- `10minutemail.net` 当前已补超时错误页识别：
+  - 若页面落到 `chrome-error://` 或出现 `ERR_CONNECTION_TIMED_OUT`
+  - 会直接判定为加载失败并重试，而不是误当成“页面已打开”
+- `tempmail.lol` 当前已补真实邮箱就绪等待：
+  - 页面打开后若仍显示 `Loading...`
+  - 会先等待邮箱真实生成，再进入适配器提取流程
 
 ## 当前失败统计策略
 
@@ -200,7 +209,7 @@
     - 注册数量 `999`
     - 并发线程 `5`
     - 浏览器模式 `隐藏`
-    - 邮箱站点 `7 - 随机`
+    - 邮箱站点 `动态随机`
     - Notion `开启`
 - GUI 在启动前会先做 Notion 预检：
   - 能连通则按开启状态执行。

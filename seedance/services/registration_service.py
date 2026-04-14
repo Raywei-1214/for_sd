@@ -46,12 +46,13 @@ from seedance.core.config import (
     STEP_RETRY_COUNT,
     SUCCESS_READY_SELECTORS,
     SUCCESS_READY_TEXT_MARKERS,
-    YEAR_INPUT_SELECTOR,
+    YEAR_INPUT_SELECTORS,
     PASSWORD_INPUT_SELECTORS,
     HOME_READY_SELECTORS,
     CONFIRMATION_READY_SELECTORS,
     CONFIRMATION_READY_TEXT_MARKERS,
     PROFILE_READY_SELECTORS,
+    PROFILE_READY_TEXT_MARKERS,
 )
 from seedance.core.logger import get_logger
 from seedance.core.models import RegistrationResult, RegistrationStep
@@ -348,7 +349,7 @@ class RegistrationService:
         day = random.randint(1, max_day)
 
         try:
-            year_input = await page.query_selector(YEAR_INPUT_SELECTOR)
+            year_input = await self._query_first(page, YEAR_INPUT_SELECTORS)
             if year_input:
                 await year_input.fill(str(year))
         except Exception:
@@ -636,11 +637,19 @@ class RegistrationService:
         profile_ready = await self._wait_for_page_state(
             page,
             selectors=PROFILE_READY_SELECTORS,
-            attempts=PAGE_READY_WAIT_SECONDS,
+            text_markers=PROFILE_READY_TEXT_MARKERS,
+            attempts=max(PAGE_READY_WAIT_SECONDS * 2, 6),
             interval_seconds=1,
         )
         if not profile_ready:
-            self._fail_step(result, RegistrationStep.FILL_PROFILE, "生日资料表单未出现")
+            await self.save_screenshot(page, "error_fill_profile")
+            failure_context = await self._capture_page_context(page)
+            self._fail_step(
+                result,
+                RegistrationStep.FILL_PROFILE,
+                "生日资料表单未出现",
+                failure_context=failure_context,
+            )
             return False, None
         birth_date = await self._fill_birth_date(page)
         return True, birth_date

@@ -114,42 +114,28 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
             "#email",
             "#mail_address",
             "input[value*='@']",
+            "[data-email]",
+            "[data-address]",
         ),
         email_value_selectors=(
             "input[value*='@']",
+            "input[readonly][value*='@']",
         ),
         email_text_selectors=(
             "#email",
             "#mail_address",
             ".email",
+            "[data-testid*='email']",
+            "[data-testid*='address']",
         ),
         email_attribute_selectors=(
             ("[data-clipboard-text]", "data-clipboard-text"),
+            ("[data-email]", "data-email"),
+            ("[data-address]", "data-address"),
         ),
         verification_text_markers=(
             "verification code",
             "code is",
-        ),
-    ),
-    "crazymailing": TempMailAdapter(
-        name="crazymailing",
-        ready_selectors=(
-            ".email",
-            ".address",
-            "input[value*='@']",
-        ),
-        email_value_selectors=(
-            "input[value*='@']",
-        ),
-        email_text_selectors=(
-            ".email",
-            ".address",
-            ".email-address",
-        ),
-        email_attribute_selectors=(),
-        verification_text_markers=(
-            "verification code",
-            "验证码",
         ),
     ),
     "internxt": TempMailAdapter(
