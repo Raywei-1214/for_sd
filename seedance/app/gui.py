@@ -274,13 +274,13 @@ QTextEdit {
 
 QScrollArea QScrollBar:vertical {
   background: transparent;
-  width: 10px;
-  margin: 8px 0 8px 0;
+  width: 8px;
+  margin: 6px 0 6px 0;
 }
 
 QScrollArea QScrollBar::handle:vertical {
-  background: rgba(193, 140, 93, 0.58);
-  border-radius: 5px;
+  background: rgba(120, 120, 120, 0.22);
+  border-radius: 4px;
   min-height: 42px;
 }
 
@@ -428,10 +428,11 @@ class SeedanceMainWindow(QMainWindow):
 
         left_scroll = QScrollArea()
         left_scroll.setWidgetResizable(True)
-        left_scroll.setFixedWidth(486)
+        left_scroll.setFixedWidth(492)
         left_scroll.setFrameShape(QFrame.NoFrame)
         left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         left_scroll.setLayoutDirection(Qt.RightToLeft)
+        left_scroll.setViewportMargins(16, 0, 0, 0)
         left_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         content_layout.addWidget(left_scroll, 0)
 
@@ -439,7 +440,7 @@ class SeedanceMainWindow(QMainWindow):
         left_panel.setLayoutDirection(Qt.LeftToRight)
         left_column = QVBoxLayout(left_panel)
         left_column.setSpacing(14)
-        left_column.setContentsMargins(18, 0, 0, 0)
+        left_column.setContentsMargins(0, 0, 0, 0)
         left_scroll.setWidget(left_panel)
 
         right_panel = QWidget()
