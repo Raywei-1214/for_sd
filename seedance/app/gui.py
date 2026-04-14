@@ -20,7 +20,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QTextEdit,
@@ -272,26 +271,6 @@ QTextEdit {
   border-radius: 34px;
 }
 
-QScrollArea QScrollBar:vertical {
-  background: transparent;
-  width: 8px;
-  margin: 6px 0 6px 0;
-}
-
-QScrollArea QScrollBar::handle:vertical {
-  background: rgba(120, 120, 120, 0.16);
-  border-radius: 4px;
-  min-height: 42px;
-}
-
-QScrollArea QScrollBar::add-line:vertical,
-QScrollArea QScrollBar::sub-line:vertical,
-QScrollArea QScrollBar::add-page:vertical,
-QScrollArea QScrollBar::sub-page:vertical {
-  background: transparent;
-  border: none;
-  height: 0px;
-}
 """
 
 logger = get_logger()
@@ -426,27 +405,13 @@ class SeedanceMainWindow(QMainWindow):
         content_layout.setSpacing(14)
         root_layout.addLayout(content_layout, 1)
 
-        left_shell = QFrame()
-        left_shell.setObjectName("Card")
-        left_shell.setFixedWidth(500)
-        left_shell.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
-        left_shell_layout = QVBoxLayout(left_shell)
-        left_shell_layout.setContentsMargins(10, 10, 10, 10)
-        left_shell_layout.setSpacing(0)
-        content_layout.addWidget(left_shell, 0)
-
-        left_scroll = QScrollArea()
-        left_scroll.setWidgetResizable(True)
-        left_scroll.setFrameShape(QFrame.NoFrame)
-        left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        left_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
-        left_shell_layout.addWidget(left_scroll)
-
         left_panel = QWidget()
+        left_panel.setFixedWidth(500)
+        left_panel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         left_column = QVBoxLayout(left_panel)
         left_column.setSpacing(14)
         left_column.setContentsMargins(0, 0, 0, 0)
-        left_scroll.setWidget(left_panel)
+        content_layout.addWidget(left_panel, 0)
 
         right_panel = QWidget()
         right_column = QVBoxLayout(right_panel)
@@ -480,6 +445,41 @@ class SeedanceMainWindow(QMainWindow):
         title.setObjectName("Title")
 
         left_layout.addWidget(title)
+
+        tools_layout = QGridLayout()
+        tools_layout.setHorizontalSpacing(8)
+        tools_layout.setVerticalSpacing(8)
+        tools_layout.setContentsMargins(0, 0, 0, 0)
+        layout.addLayout(tools_layout)
+
+        self.clear_log_button = QPushButton("清空日志")
+        self.clear_log_button.setObjectName("SecondaryButton")
+        self.clear_log_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.clear_log_button.setMinimumWidth(120)
+        self.clear_log_button.clicked.connect(self.clear_log)
+
+        self.open_report_button = QPushButton("打开报告目录")
+        self.open_report_button.setObjectName("SecondaryButton")
+        self.open_report_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.open_report_button.setMinimumWidth(120)
+        self.open_report_button.clicked.connect(lambda: self._open_path(REPORT_DIR))
+
+        self.open_backup_button = QPushButton("打开账号备份")
+        self.open_backup_button.setObjectName("SecondaryButton")
+        self.open_backup_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.open_backup_button.setMinimumWidth(120)
+        self.open_backup_button.clicked.connect(lambda: self._open_path(SUCCESS_DIR))
+
+        self.open_log_button = QPushButton("打开日志文件")
+        self.open_log_button.setObjectName("SecondaryButton")
+        self.open_log_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.open_log_button.setMinimumWidth(120)
+        self.open_log_button.clicked.connect(lambda: self._open_path(LOG_FILE))
+
+        tools_layout.addWidget(self.clear_log_button, 0, 0)
+        tools_layout.addWidget(self.open_report_button, 0, 1)
+        tools_layout.addWidget(self.open_backup_button, 1, 0)
+        tools_layout.addWidget(self.open_log_button, 1, 1)
         return card
 
     def _build_runtime_card(self) -> QFrame:
@@ -530,7 +530,7 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_action_card(self) -> QFrame:
         card = self._create_card("执行控制")
-        card.setMinimumHeight(220)
+        card.setMinimumHeight(112)
         layout = card.layout()
 
         button_row = QHBoxLayout()
@@ -555,39 +555,6 @@ class SeedanceMainWindow(QMainWindow):
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.stop_button)
         button_row.addStretch(1)
-
-        tool_grid = QGridLayout()
-        tool_grid.setHorizontalSpacing(8)
-        tool_grid.setVerticalSpacing(8)
-        tool_grid.setContentsMargins(0, 2, 0, 0)
-        tool_grid.setColumnStretch(0, 1)
-        tool_grid.setColumnStretch(1, 1)
-        layout.addLayout(tool_grid)
-
-        self.clear_log_button = QPushButton("清空日志")
-        self.clear_log_button.setObjectName("SecondaryButton")
-        self.clear_log_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.clear_log_button.clicked.connect(self.clear_log)
-
-        open_report_button = QPushButton("打开报告目录")
-        open_report_button.setObjectName("SecondaryButton")
-        open_report_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        open_report_button.clicked.connect(lambda: self._open_path(REPORT_DIR))
-
-        open_backup_button = QPushButton("打开账号备份")
-        open_backup_button.setObjectName("SecondaryButton")
-        open_backup_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        open_backup_button.clicked.connect(lambda: self._open_path(SUCCESS_DIR))
-
-        open_log_button = QPushButton("打开日志文件")
-        open_log_button.setObjectName("SecondaryButton")
-        open_log_button.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        open_log_button.clicked.connect(lambda: self._open_path(LOG_FILE))
-
-        tool_grid.addWidget(self.clear_log_button, 0, 0)
-        tool_grid.addWidget(open_report_button, 0, 1)
-        tool_grid.addWidget(open_backup_button, 1, 0)
-        tool_grid.addWidget(open_log_button, 1, 1)
         return card
 
     def _build_summary_card(self) -> QFrame:
