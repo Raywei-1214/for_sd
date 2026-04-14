@@ -1,13 +1,14 @@
 import html
 import logging
+import math
 import re
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from threading import Event
 
-from PySide6.QtCore import QEasingCurve, QObject, Qt, QThread, QUrl, QVariantAnimation, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QFont
+from PySide6.QtCore import QObject, QPointF, Qt, QThread, QUrl, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QConicalGradient, QDesktopServices, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -322,6 +323,67 @@ class WorkerStream:
 
     def flush(self) -> None:
         return None
+
+
+class BusyAccentButton(QPushButton):
+    def __init__(self, text: str = "", parent: QWidget | None = None):
+        super().__init__(text, parent)
+        self._busy_active = False
+        self._ring_phase = 0.0
+        self._pulse_strength = 0.0
+
+    def set_busy_visual_state(self, active: bool) -> None:
+        self._busy_active = active
+        if not active:
+            self._ring_phase = 0.0
+            self._pulse_strength = 0.0
+        self.update()
+
+    def set_busy_visual_phase(self, phase: float) -> None:
+        self._ring_phase = phase % 1.0
+        self._pulse_strength = (math.sin(phase * math.tau) + 1.0) / 2.0
+        self.update()
+
+    def _resolve_accent_color(self) -> QColor:
+        if self.objectName() == "DangerButton":
+            return QColor("#D37A61")
+        return QColor("#8AA373")
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        if not self._busy_active:
+            return
+
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing, True)
+
+        accent = self._resolve_accent_color()
+        outer_rect = self.rect().adjusted(2, 2, -2, -2)
+        radius = outer_rect.height() / 2
+
+        glow_color = QColor(accent)
+        glow_color.setAlpha(int(42 + self._pulse_strength * 98))
+        glow_pen = QPen(glow_color, 2.2 + self._pulse_strength * 2.8)
+        painter.setPen(glow_pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(outer_rect, radius, radius)
+
+        ring_gradient = QConicalGradient(QPointF(outer_rect.center()), 90 - self._ring_phase * 360.0)
+        transparent = QColor(accent)
+        transparent.setAlpha(0)
+        pillar_core = QColor("#FFF4D8" if self.objectName() == "DangerButton" else "#F6FFE8")
+        pillar_core.setAlpha(int(200 + self._pulse_strength * 40))
+        pillar_edge = QColor(accent)
+        pillar_edge.setAlpha(int(110 + self._pulse_strength * 60))
+        ring_gradient.setColorAt(0.00, transparent)
+        ring_gradient.setColorAt(0.03, pillar_edge)
+        ring_gradient.setColorAt(0.05, pillar_core)
+        ring_gradient.setColorAt(0.08, pillar_edge)
+        ring_gradient.setColorAt(0.12, transparent)
+        ring_gradient.setColorAt(1.00, transparent)
+        painter.setPen(QPen(ring_gradient, 3.0))
+        painter.drawRoundedRect(outer_rect, radius, radius)
+        painter.end()
 
 
 class NotionSettingsDialog(QDialog):
@@ -656,13 +718,13 @@ class SeedanceMainWindow(QMainWindow):
         button_row.setSpacing(10)
         layout.addLayout(button_row)
 
-        self.start_button = QPushButton("开始执行")
+        self.start_button = BusyAccentButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.start_button.setFixedSize(116, 44)
         self.start_button.clicked.connect(self.start_run)
 
-        self.stop_button = QPushButton("打断结束")
+        self.stop_button = BusyAccentButton("打断结束")
         self.stop_button.setObjectName("DangerButton")
         self.stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.stop_button.setMinimumWidth(132)
@@ -846,16 +908,17 @@ class SeedanceMainWindow(QMainWindow):
         animation = self._button_animations.get(button)
         if animation is None:
             animation = QVariantAnimation(button)
-            animation.setDuration(1400)
+            animation.setDuration(860)
             animation.setStartValue(0.0)
             animation.setEndValue(1.0)
-            animation.setEasingCurve(QEasingCurve.InOutSine)
             animation.setLoopCount(-1)
             animation.valueChanged.connect(
                 lambda value, target_button=button: self._update_button_glow(target_button, float(value))
             )
             self._button_animations[button] = animation
 
+        if isinstance(button, BusyAccentButton):
+            button.set_busy_visual_state(True)
         animation.start()
 
     def _stop_button_breathing(self, button: QPushButton) -> None:
@@ -867,24 +930,32 @@ class SeedanceMainWindow(QMainWindow):
         if isinstance(effect, QGraphicsDropShadowEffect):
             effect.setBlurRadius(0)
             effect.setColor(QColor(0, 0, 0, 0))
+        if isinstance(button, BusyAccentButton):
+            button.set_busy_visual_state(False)
 
     def _update_button_glow(self, button: QPushButton, phase: float) -> None:
         effect = button.graphicsEffect()
         if not isinstance(effect, QGraphicsDropShadowEffect):
             return
 
+        pulse = (math.sin(phase * math.tau) + 1.0) / 2.0
+
         if button.objectName() == "DangerButton":
             base_color = QColor("#A85448")
-            alpha = int(36 + phase * 54)
+            alpha = int(82 + pulse * 118)
+            blur_radius = 18 + pulse * 26
         else:
             base_color = QColor("#5D7052")
-            alpha = int(42 + phase * 68)
+            alpha = int(96 + pulse * 132)
+            blur_radius = 20 + pulse * 28
 
         glow_color = QColor(base_color)
         glow_color.setAlpha(alpha)
         effect.setColor(glow_color)
-        effect.setBlurRadius(10 + phase * 14)
+        effect.setBlurRadius(blur_radius)
         effect.setOffset(0, 0)
+        if isinstance(button, BusyAccentButton):
+            button.set_busy_visual_phase(phase)
 
     def _set_button_busy_state(self, button: QPushButton, busy: bool) -> None:
         button.setProperty("busy", busy)
