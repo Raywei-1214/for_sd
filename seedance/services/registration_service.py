@@ -675,7 +675,7 @@ class RegistrationService:
         start_time = time.time()
 
         logger.info(f"[线程{self.thread_id}] 开始时间: {started_at}")
-        logger.info(f"[线程{self.thread_id}] ⭐ 美区注册模式 ⭐")
+        logger.info(f"[线程{self.thread_id}] ⭐ 国际站注册模式 ⭐")
 
         playwright = None
         browser = None

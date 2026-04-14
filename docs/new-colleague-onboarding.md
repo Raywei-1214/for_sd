@@ -21,6 +21,15 @@
 - GUI 启动入口：`seedance_gui.py`
 - CLI 薄入口：`dreamina_register_playwright_usa.py`
 
+## 命名说明
+
+- 当前项目面向 Dreamina 国际站，不强制要求美国节点。
+- 项目里仍保留少量历史遗留命名，例如：
+  - `dreamina_register_playwright_usa.py`
+  - `dreamina_register_usa.log`
+  - `registered_accounts_usa/`
+- 这些名字目前只是历史文件名，不代表程序会校验“必须美国 IP”。
+
 ## 先决条件
 
 ### Windows

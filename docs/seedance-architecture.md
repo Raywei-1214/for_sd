@@ -75,6 +75,15 @@
 9. `complete_registration`
 10. `collect_account_data`
 
+## 当前命名说明
+
+- 当前项目实际面向 Dreamina 国际站，不强制要求美国 IP。
+- 代码和运行目录里仍保留少量 `*_usa` 命名：
+  - `dreamina_register_usa.log`
+  - `registered_accounts_usa/`
+  - `screenshots_usa/`
+- 这些名称目前仅作为历史遗留文件名使用，不再表示“必须美区节点”。
+
 ## 当前页面断言策略
 
 - 主页：优先等待 `Create` 菜单等稳定元素出现。
