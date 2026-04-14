@@ -410,10 +410,12 @@ class SeedanceMainWindow(QMainWindow):
         left_scroll.setFixedWidth(470)
         left_scroll.setFrameShape(QFrame.NoFrame)
         left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        left_scroll.setLayoutDirection(Qt.RightToLeft)
         left_scroll.setStyleSheet("QScrollArea { background: transparent; border: none; }")
         content_layout.addWidget(left_scroll, 0)
 
         left_panel = QWidget()
+        left_panel.setLayoutDirection(Qt.LeftToRight)
         left_column = QVBoxLayout(left_panel)
         left_column.setSpacing(14)
         left_column.setContentsMargins(0, 0, 0, 0)
@@ -482,9 +484,9 @@ class SeedanceMainWindow(QMainWindow):
         form_grid.setColumnStretch(2, 1)
         layout.addLayout(form_grid)
 
-        form_grid.addWidget(self._create_input_card("注册数量", self.total_count_spin), 0, 0)
-        form_grid.addWidget(self._create_input_card("并发线程数", self.max_workers_spin), 0, 1)
-        form_grid.addWidget(self._create_input_card("邮箱站点", self.email_combo), 0, 2)
+        form_grid.addWidget(self._create_input_card("注册数量", self.total_count_spin, control_width=126), 0, 0)
+        form_grid.addWidget(self._create_input_card("并发线程数", self.max_workers_spin, control_width=118), 0, 1)
+        form_grid.addWidget(self._create_input_card("邮箱站点", self.email_combo, control_width=138), 0, 2)
 
         self.show_browser_checkbox = QCheckBox("显示浏览器窗口")
         self.debug_checkbox = QCheckBox("调试模式（保存截图）")
@@ -651,7 +653,7 @@ class SeedanceMainWindow(QMainWindow):
         layout.addWidget(value)
         return {"card": card, "value": value}
 
-    def _create_input_card(self, title_text: str, input_widget: QWidget) -> QFrame:
+    def _create_input_card(self, title_text: str, input_widget: QWidget, control_width: int | None = None) -> QFrame:
         card = QFrame()
         card.setObjectName("StatCard")
         layout = QVBoxLayout(card)
@@ -665,7 +667,15 @@ class SeedanceMainWindow(QMainWindow):
         title.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         layout.addWidget(title)
-        layout.addWidget(input_widget)
+
+        control_row = QHBoxLayout()
+        control_row.setContentsMargins(0, 0, 0, 0)
+        control_row.setSpacing(0)
+        if control_width is not None:
+            input_widget.setFixedWidth(control_width)
+        control_row.addWidget(input_widget, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        control_row.addStretch(1)
+        layout.addLayout(control_row)
         return card
 
     def _create_field_label(self, text: str) -> QLabel:
