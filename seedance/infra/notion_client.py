@@ -11,10 +11,12 @@ from seedance.core.models import RegistrationResult
 logger = get_logger()
 
 NOTION_VERSION = "2022-06-28"
-DESIRED_RESULT_PROPERTY_NAMES = {"账号", "密码", "国家"}
+DESIRED_RESULT_PROPERTY_NAMES = {"账号", "密码", "国家", "注册时间", "邮箱站点"}
 REQUIRED_RESULT_PROPERTIES = {
     "密码": {"rich_text": {}},
     "国家": {"rich_text": {}},
+    "注册时间": {"rich_text": {}},
+    "邮箱站点": {"rich_text": {}},
 }
 
 
@@ -114,8 +116,8 @@ class NotionClient:
             self._title_property_name = title_property_name
 
         # ================================
-        # 这里把 Notion 表强制收敛为 3 列
-        # 目的: 表结构只保留账号、密码、国家，避免继续膨胀
+        # 这里把 Notion 表强制收敛为 5 列
+        # 目的: 表结构只保留账号、密码、国家、注册时间、邮箱站点，避免继续膨胀
         # 边界: 标题列必须保留，其他非目标列统一清理
         # ================================
         if title_property_name and title_property_name != "账号" and title_property_id:
@@ -138,7 +140,7 @@ class NotionClient:
 
         # ================================
         # 这里同时做“补齐缺失字段 + 清理冗余字段”
-        # 触发条件: 表结构不满足 账号/密码/国家 三列模型
+        # 触发条件: 表结构不满足 账号/密码/国家/注册时间/邮箱站点 五列模型
         # 边界: 只调整当前数据库，不影响本地 txt 备份策略
         # ================================
         if patch_properties:
@@ -173,6 +175,16 @@ class NotionClient:
             "国家": {
                 "rich_text": [
                     {"text": {"content": result.country or ""}}
+                ]
+            },
+            "注册时间": {
+                "rich_text": [
+                    {"text": {"content": result.finished_at or result.started_at or ""}}
+                ]
+            },
+            "邮箱站点": {
+                "rich_text": [
+                    {"text": {"content": result.provider_name or ""}}
                 ]
             },
         }

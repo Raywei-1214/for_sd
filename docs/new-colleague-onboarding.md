@@ -83,10 +83,12 @@ NOTION_DATABASE_ID=你的 Notion Database ID
 
 - `.env.local` 不会提交到 git
 - 当前 Notion 只会写入“积分为 0 且有 sessionid”的成功账号
-- Notion 表只保留 3 列：
+- Notion 表只保留 5 列：
   - `账号`
   - `密码`
   - `国家`
+  - `注册时间`
+  - `邮箱站点`
 
 如果暂时不想配 Notion：
 
