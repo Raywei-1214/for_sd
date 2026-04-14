@@ -367,8 +367,8 @@ class BusyAccentButton(QPushButton):
         radius = outer_rect.height() / 2
 
         glow_color = QColor(accent)
-        glow_color.setAlpha(int(42 + self._pulse_strength * 98))
-        glow_pen = QPen(glow_color, 2.2 + self._pulse_strength * 2.8)
+        glow_color.setAlpha(int(88 + self._pulse_strength * 150))
+        glow_pen = QPen(glow_color, 4.2 + self._pulse_strength * 5.6)
         painter.setPen(glow_pen)
         painter.setBrush(Qt.NoBrush)
         painter.drawRoundedRect(outer_rect, radius, radius)
@@ -377,17 +377,17 @@ class BusyAccentButton(QPushButton):
         transparent = QColor(accent)
         transparent.setAlpha(0)
         pillar_core = QColor("#FFF4D8" if self.objectName() == "DangerButton" else "#F6FFE8")
-        pillar_core.setAlpha(int(200 + self._pulse_strength * 40))
+        pillar_core.setAlpha(int(220 + self._pulse_strength * 35))
         pillar_edge = QColor(accent)
-        pillar_edge.setAlpha(int(110 + self._pulse_strength * 60))
+        pillar_edge.setAlpha(int(140 + self._pulse_strength * 90))
         ring_gradient.setColorAt(0.00, transparent)
-        ring_gradient.setColorAt(0.03, pillar_edge)
+        ring_gradient.setColorAt(0.02, pillar_edge)
         ring_gradient.setColorAt(0.05, pillar_core)
-        ring_gradient.setColorAt(0.08, pillar_edge)
-        ring_gradient.setColorAt(0.12, transparent)
+        ring_gradient.setColorAt(0.10, pillar_edge)
+        ring_gradient.setColorAt(0.18, transparent)
         ring_gradient.setColorAt(1.00, transparent)
 
-        ring_pen = QPen(ring_gradient, 3.0)
+        ring_pen = QPen(ring_gradient, 4.2)
         painter.setPen(ring_pen)
         painter.drawRoundedRect(outer_rect, radius, radius)
         painter.end()
@@ -941,7 +941,7 @@ class SeedanceMainWindow(QMainWindow):
         animation = self._button_animations.get(button)
         if animation is None:
             animation = QVariantAnimation(button)
-            animation.setDuration(860)
+            animation.setDuration(1720)
             animation.setStartValue(0.0)
             animation.setEndValue(1.0)
             animation.setLoopCount(-1)
@@ -975,12 +975,12 @@ class SeedanceMainWindow(QMainWindow):
 
         if button.objectName() == "DangerButton":
             base_color = QColor("#A85448")
-            alpha = int(82 + pulse * 118)
-            blur_radius = 18 + pulse * 26
+            alpha = int(150 + pulse * 105)
+            blur_radius = 34 + pulse * 38
         else:
             base_color = QColor("#5D7052")
-            alpha = int(96 + pulse * 132)
-            blur_radius = 20 + pulse * 28
+            alpha = int(165 + pulse * 90)
+            blur_radius = 38 + pulse * 42
 
         glow_color = QColor(base_color)
         glow_color.setAlpha(alpha)
