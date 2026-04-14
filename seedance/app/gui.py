@@ -5,13 +5,14 @@ from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from threading import Event
 
-from PySide6.QtCore import QObject, Qt, QThread, QUrl, Signal
+from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation, Qt, QThread, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
     QFrame,
+    QGraphicsOpacityEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -223,6 +224,13 @@ QPushButton#PrimaryButton:hover {
   background: #6A7D5F;
 }
 
+QPushButton#PrimaryButton[busy="true"],
+QPushButton#PrimaryButton[busy="true"]:disabled {
+  background: #5D7052;
+  color: #F3F4F1;
+  border: 1px solid rgba(93, 112, 82, 0.68);
+}
+
 QPushButton#SecondaryButton {
   background: rgba(255, 255, 255, 0.18);
   color: #C18C5D;
@@ -241,6 +249,13 @@ QPushButton#DangerButton {
 
 QPushButton#DangerButton:hover {
   background: rgba(168, 84, 72, 0.2);
+}
+
+QPushButton#DangerButton[busy="true"],
+QPushButton#DangerButton[busy="true"]:disabled {
+  background: rgba(168, 84, 72, 0.12);
+  color: #A85448;
+  border: 2px solid rgba(168, 84, 72, 0.45);
 }
 
 QPushButton:disabled {
@@ -344,6 +359,7 @@ class SeedanceMainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.last_summary: BatchSummary | None = None
         self.stop_event: Event | None = None
+        self._button_animations: dict[QPushButton, QPropertyAnimation] = {}
 
         self.setWindowTitle("拾米 - SD账号注册")
         self.resize(1360, 880)
@@ -665,6 +681,43 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setFormat(f"0 / {DEFAULT_TOTAL_COUNT}")
         self.progress_detail_value.setText(f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}")
 
+    def _start_button_breathing(self, button: QPushButton) -> None:
+        effect = button.graphicsEffect()
+        if not isinstance(effect, QGraphicsOpacityEffect):
+            effect = QGraphicsOpacityEffect(button)
+            effect.setOpacity(1.0)
+            button.setGraphicsEffect(effect)
+
+        animation = self._button_animations.get(button)
+        if animation is None:
+            animation = QPropertyAnimation(effect, b"opacity", button)
+            animation.setDuration(1100)
+            animation.setStartValue(1.0)
+            animation.setEndValue(0.55)
+            animation.setEasingCurve(QEasingCurve.InOutSine)
+            animation.setLoopCount(-1)
+            self._button_animations[button] = animation
+
+        animation.start()
+
+    def _stop_button_breathing(self, button: QPushButton) -> None:
+        animation = self._button_animations.get(button)
+        if animation is not None:
+            animation.stop()
+
+        effect = button.graphicsEffect()
+        if isinstance(effect, QGraphicsOpacityEffect):
+            effect.setOpacity(1.0)
+
+    def _set_button_busy_state(self, button: QPushButton, busy: bool) -> None:
+        button.setProperty("busy", busy)
+        button.style().unpolish(button)
+        button.style().polish(button)
+        if busy:
+            self._start_button_breathing(button)
+        else:
+            self._stop_button_breathing(button)
+
     def _refresh_progress_view(self, progress: BatchProgress) -> None:
         self.total_stat["value"].setText(str(progress.planned_total))
         self.success_stat["value"].setText(str(progress.success_count))
@@ -770,6 +823,7 @@ class SeedanceMainWindow(QMainWindow):
         self.stop_event.set()
         self.stop_button.setText("等待收尾中")
         self.stop_button.setDisabled(True)
+        self._set_button_busy_state(self.stop_button, True)
         self.append_log("已收到打断结束请求：不再启动新任务，正在等待进行中的线程收尾。")
         self.run_status_value.setText("停止中")
 
@@ -792,6 +846,9 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_detail_value.setText(f"已完成 0 / {run_config.total_count}，运行中 0，待开始 {run_config.total_count}")
         self.report_path_value.setText("运行中，报告生成后会显示在这里")
         self.last_result_value.setText("任务已启动，等待批量结果...")
+        self.start_button.setText("正在执行")
+        self._set_button_busy_state(self.start_button, True)
+        self._set_button_busy_state(self.stop_button, False)
         self.stop_button.setText("打断结束")
         self.append_log("=" * 60)
         self.append_log("GUI 已启动批量注册任务")
@@ -839,8 +896,11 @@ class SeedanceMainWindow(QMainWindow):
         self.last_result_value.setText(summary_text)
         self.append_log("GUI 执行完毕，统计卡片已刷新。")
         self._set_running_state(False)
+        self.start_button.setText("开始执行")
+        self._set_button_busy_state(self.start_button, False)
         self.run_status_value.setText("已打断" if summary.stop_requested else "已完成")
         self.stop_button.setText("打断结束")
+        self._set_button_busy_state(self.stop_button, False)
 
     def _handle_progress_update(self, progress: BatchProgress) -> None:
         self._refresh_progress_view(progress)
@@ -850,8 +910,11 @@ class SeedanceMainWindow(QMainWindow):
         self.append_log(f"GUI 执行失败: {error_message}")
         QMessageBox.critical(self, "执行失败", error_message)
         self._set_running_state(False)
+        self.start_button.setText("开始执行")
+        self._set_button_busy_state(self.start_button, False)
         self.run_status_value.setText("执行失败")
         self.stop_button.setText("打断结束")
+        self._set_button_busy_state(self.stop_button, False)
 
     def _cleanup_worker(self) -> None:
         if self.worker:
@@ -861,6 +924,10 @@ class SeedanceMainWindow(QMainWindow):
         self.worker = None
         self.worker_thread = None
         self.stop_event = None
+        self.start_button.setText("开始执行")
+        self._set_button_busy_state(self.start_button, False)
+        self.stop_button.setText("打断结束")
+        self._set_button_busy_state(self.stop_button, False)
 
 
 def main() -> int:
