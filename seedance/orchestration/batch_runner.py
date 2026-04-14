@@ -302,14 +302,19 @@ def main(
         success_count = sum(1 for result in results if result.success)
         completed_count = len(results)
         fail_count = completed_count - success_count
+        available_count = sum(
+            1 for result in results if result.success and account_store.is_notion_eligible(result)
+        )
         progress = BatchProgress(
             planned_total=runtime_options.total_count,
             completed_count=completed_count,
             success_count=success_count,
             fail_count=fail_count,
+            available_count=available_count,
             active_count=active_count,
             pending_count=pending_count,
             success_rate=round((success_count / completed_count * 100), 1) if completed_count else 0.0,
+            available_rate=round((available_count / completed_count * 100), 1) if completed_count else 0.0,
             started_at=script_start_datetime,
             elapsed_seconds=round(time.time() - script_start_time, 2),
             stop_requested=stop_requested,
@@ -407,6 +412,9 @@ def main(
     completed_count = len(results)
     success_count = sum(1 for result in results if result.success)
     fail_count = completed_count - success_count
+    available_count = sum(
+        1 for result in results if result.success and account_store.is_notion_eligible(result)
+    )
     script_end_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     script_total_time = time.time() - script_start_time
     script_minutes = int(script_total_time // 60)
@@ -425,6 +433,7 @@ def main(
     logger.info(f"失败: {fail_count} 个")
     if results:
         logger.info(f"成功率: {success_count / len(results) * 100:.1f}%")
+        logger.info(f"可用率: {available_count / len(results) * 100:.1f}%")
     _emit_progress(active_count=0, pending_count=0)
     _log_failure_statistics(results)
     _update_provider_health(results)
@@ -440,7 +449,9 @@ def main(
         total_count=completed_count,
         success_count=success_count,
         fail_count=fail_count,
+        available_count=available_count,
         success_rate=round((success_count / completed_count * 100), 1) if completed_count else 0.0,
+        available_rate=round((available_count / completed_count * 100), 1) if completed_count else 0.0,
         started_at=script_start_datetime,
         finished_at=script_end_datetime,
         duration_seconds=round(script_total_time, 2),

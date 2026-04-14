@@ -79,7 +79,9 @@ class BatchSummary:
     total_count: int
     success_count: int
     fail_count: int
+    available_count: int
     success_rate: float
+    available_rate: float
     started_at: str
     finished_at: str
     duration_seconds: float
@@ -95,9 +97,11 @@ class BatchProgress:
     completed_count: int
     success_count: int
     fail_count: int
+    available_count: int
     active_count: int
     pending_count: int
     success_rate: float
+    available_rate: float
     started_at: str
     elapsed_seconds: float
     stop_requested: bool = False

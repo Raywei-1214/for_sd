@@ -54,6 +54,10 @@ class AccountStore:
 
         return True, None
 
+    def is_notion_eligible(self, result: RegistrationResult) -> bool:
+        eligible, _ = self._can_sync_success_to_notion(result)
+        return eligible
+
     def _write_backup_file(self, result: RegistrationResult, timestamp_filename: str | None = None) -> None:
         date_str = datetime.now().strftime("%Y%m%d")
         filename = self.success_dir / f"accounts_{date_str}.txt"
