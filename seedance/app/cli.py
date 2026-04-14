@@ -8,6 +8,7 @@ logger = get_logger()
 
 
 def main() -> None:
+    provider_names = ", ".join(provider["name"] for provider in TEMP_EMAIL_PROVIDERS)
     parser = argparse.ArgumentParser(
         description="即梦国际站自动注册脚本 - sd 国际站版 v6.8"
     )
@@ -25,7 +26,7 @@ def main() -> None:
         "--email",
         type=str,
         default=None,
-        help="指定临时邮箱网站: mail.tm, 10minutemail.net, internxt, mailpoof, tempmail.lol, crazymailing",
+        help=f"指定临时邮箱网站: {provider_names}",
     )
     parser.add_argument(
         "--no-notion",

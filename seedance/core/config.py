@@ -16,10 +16,10 @@ IP_COUNTRY_URL = "http://ip-api.com/json/?fields=country"
 TEMP_EMAIL_PROVIDERS = [
     {"name": "mail.tm", "url": "https://mail.tm/zh/"},
     {"name": "10minutemail.net", "url": "https://10minutemail.net/"},
-    {"name": "internxt", "url": "https://internxt.com/temporary-email"},
-    {"name": "mailpoof", "url": "https://mailpoof.com/"},
     {"name": "tempmail.lol", "url": "https://tempmail.lol/"},
     {"name": "crazymailing", "url": "https://www.crazymailing.com/"},
+    {"name": "guerrillamail", "url": "https://www.guerrillamail.com/"},
+    {"name": "tempemail.cc", "url": "https://www.tempemail.cc/fr"},
 ]
 
 DEFAULT_TOTAL_COUNT = 999

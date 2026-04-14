@@ -105,6 +105,14 @@
   - 所有站点保留基础出场机会
   - 健康站点会在轮盘 bonus 段获得更高优先级
   - 只有邮箱相关硬失败才会降低站点健康度
+- 当前启用的站点池为：
+  - `mail.tm`
+  - `10minutemail.net`
+  - `tempmail.lol`
+  - `crazymailing`
+  - `guerrillamail`
+  - `tempemail.cc`
+- `internxt` 与 `mailpoof` 已停用，因为近期运行中持续高频命中“临时邮箱获取失败”
 
 ## 当前失败统计策略
 
@@ -124,6 +132,9 @@
   - `notion_skip_reason`
   - `backup_ok`
   - `backup_error`
+- 对于 `主页加载失败` 与 `临时邮箱获取失败`，报告会额外记录：
+  - `failure_context`
+  - 内容包含当时的 `url / title / body 片段`
 
 ## 当前账号输出策略
 

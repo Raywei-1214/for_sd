@@ -30,6 +30,8 @@
 - Windows 浏览器探测已优先读取注册表中的 Chrome 权威路径
 - Windows 工作线程已显式使用兼容 Playwright 的事件循环类型，减少默认策略漂移
 - Windows `PyInstaller` 已关闭 `UPX`，优先降低公开 GUI 工具的误报率
+- 临时邮箱站点池已停用 `internxt`、`mailpoof`，改为启用 `guerrillamail`、`tempemail.cc`
+- `主页加载失败` 与 `临时邮箱获取失败` 已补页面上下文采样，并写入运行报告的 `failure_context`
 - 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`
 - 推送路线与 `CC_AutoCut` 保持一致，统一复用 GitHub SSH 凭据，不走 `https`

@@ -108,74 +108,6 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
             "dreamina",
         ),
     ),
-    "internxt": TempMailAdapter(
-        name="internxt",
-        ready_selectors=(
-            "input[readonly]",
-            "button[aria-label*='copy' i]",
-            "[data-testid*='email']",
-            "[data-testid*='address']",
-            ".email-address",
-            ".address",
-        ),
-        email_value_selectors=(
-            "input[readonly][value*='@']",
-            "input[value*='@']",
-        ),
-        email_text_selectors=(
-            ".email-address",
-            ".address",
-            "#email",
-            "[data-testid*='email']",
-            "[data-testid*='address']",
-            "[aria-label*='email' i]",
-            "[aria-label*='address' i]",
-            "button[aria-label*='copy' i]",
-        ),
-        email_attribute_selectors=(
-            ("[data-email]", "data-email"),
-            ("[data-address]", "data-address"),
-            ("[data-clipboard-text]", "data-clipboard-text"),
-            ("button[aria-label*='copy' i]", "data-clipboard-text"),
-            ("button[aria-label*='email' i]", "aria-label"),
-        ),
-        verification_text_markers=(
-            "verification code",
-            "code is",
-            "dreamina",
-        ),
-    ),
-    "mailpoof": TempMailAdapter(
-        name="mailpoof",
-        ready_selectors=(
-            "#email",
-            "input[name='email']",
-            "input[placeholder*='email' i]",
-            "#selected-domain",
-            ".email-address",
-            "input[value*='@']",
-        ),
-        email_value_selectors=(
-            "input[value*='@']",
-            "input[name='email'][value]",
-        ),
-        email_text_selectors=(
-            "#email",
-            "#selected-domain",
-            ".email-address",
-            ".email",
-            "input[name='email']",
-        ),
-        email_attribute_selectors=(
-            ("[data-clipboard-text]", "data-clipboard-text"),
-            ("input[name='email']", "value"),
-        ),
-        verification_text_markers=(
-            "verification code",
-            "code is",
-            "dreamina",
-        ),
-    ),
     "tempmail.lol": TempMailAdapter(
         name="tempmail.lol",
         ready_selectors=(
@@ -218,6 +150,64 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
         verification_text_markers=(
             "verification code",
             "验证码",
+        ),
+    ),
+    "guerrillamail": TempMailAdapter(
+        name="guerrillamail",
+        ready_selectors=(
+            "input[value*='@']",
+            "input[readonly][value*='@']",
+            "[data-clipboard-text*='@']",
+        ),
+        email_value_selectors=(
+            "input[value*='@']",
+            "input[readonly][value*='@']",
+        ),
+        email_text_selectors=(
+            ".email",
+            ".email-address",
+            "#email",
+        ),
+        email_attribute_selectors=(
+            ("[data-clipboard-text*='@']", "data-clipboard-text"),
+        ),
+        verification_text_markers=(
+            "verification code",
+            "code is",
+            "dreamina",
+            "capcut",
+        ),
+    ),
+    "tempemail.cc": TempMailAdapter(
+        name="tempemail.cc",
+        ready_selectors=(
+            "input[value*='@']",
+            "input[readonly][value*='@']",
+            "[data-email]",
+            "[data-address]",
+        ),
+        email_value_selectors=(
+            "input[value*='@']",
+            "input[readonly][value*='@']",
+        ),
+        email_text_selectors=(
+            "#email",
+            ".email",
+            ".address",
+            ".email-address",
+            "[data-testid*='email']",
+            "[data-testid*='address']",
+        ),
+        email_attribute_selectors=(
+            ("[data-email]", "data-email"),
+            ("[data-address]", "data-address"),
+            ("[data-clipboard-text*='@']", "data-clipboard-text"),
+        ),
+        verification_text_markers=(
+            "verification code",
+            "code is",
+            "dreamina",
+            "capcut",
         ),
     ),
 }

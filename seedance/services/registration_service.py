@@ -110,11 +110,46 @@ class RegistrationService:
         result: RegistrationResult,
         step: RegistrationStep,
         error_message: str,
+        failure_context: str | None = None,
     ) -> RegistrationResult:
         result.failed_step = step.value
         result.error_message = error_message
+        result.failure_context = failure_context
         logger.error(f"[线程{self.thread_id}] 步骤失败 {step.value}: {error_message}")
+        if failure_context:
+            logger.error(f"[线程{self.thread_id}] 失败上下文 {step.value}: {failure_context}")
         return result
+
+    async def _capture_page_context(self, page: Page | None) -> str | None:
+        if page is None:
+            return None
+
+        try:
+            current_url = page.url or ""
+        except Exception:
+            current_url = ""
+
+        try:
+            title = await page.title()
+        except Exception:
+            title = ""
+
+        try:
+            body_text = await page.evaluate("() => document.body?.innerText || ''")
+            body_preview = re.sub(r"\s+", " ", body_text).strip()[:160]
+        except Exception:
+            body_preview = ""
+
+        context_parts = []
+        if current_url:
+            context_parts.append(f"url={current_url}")
+        if title:
+            context_parts.append(f"title={title}")
+        if body_preview:
+            context_parts.append(f"body={body_preview}")
+        if not context_parts:
+            return None
+        return " | ".join(context_parts)
 
     async def save_screenshot(self, page: Page, name: str) -> None:
         if not self.debug_mode:
@@ -451,7 +486,14 @@ class RegistrationService:
             except Exception:
                 await asyncio.sleep(5)
 
-        self._fail_step(result, RegistrationStep.OPEN_HOME, "主页加载失败")
+        await self.save_screenshot(page, "error_open_home")
+        failure_context = await self._capture_page_context(page)
+        self._fail_step(
+            result,
+            RegistrationStep.OPEN_HOME,
+            "主页加载失败",
+            failure_context=failure_context,
+        )
         return False
 
     async def _open_signup_flow(self, page: Page, result: RegistrationResult) -> bool:
@@ -520,7 +562,13 @@ class RegistrationService:
         self._mark_step(result, RegistrationStep.ACQUIRE_TEMP_EMAIL)
         email_page, email_ready = await self.temp_email_service.acquire_email(context)
         if not email_ready:
-            self._fail_step(result, RegistrationStep.ACQUIRE_TEMP_EMAIL, "临时邮箱获取失败")
+            failure_context = await self._capture_page_context(email_page)
+            self._fail_step(
+                result,
+                RegistrationStep.ACQUIRE_TEMP_EMAIL,
+                "临时邮箱获取失败",
+                failure_context=failure_context,
+            )
         return email_page, email_ready
 
     async def _fill_credentials(self, page: Page, result: RegistrationResult) -> bool:
@@ -668,6 +716,8 @@ class RegistrationService:
             logger.info(f"失败步骤: {result.failed_step}")
         if result.error_message:
             logger.info(f"失败原因: {result.error_message}")
+        if result.failure_context:
+            logger.info(f"失败上下文: {result.failure_context}")
         logger.info("=" * 60)
 
     async def register(self) -> RegistrationResult:

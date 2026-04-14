@@ -214,6 +214,8 @@ def _sanitize_runtime_options(runtime_options: RuntimeOptions) -> RuntimeOptions
 def _select_email_provider() -> str | None:
     email_config = load_browser_config()
     saved_email_choice = email_config.get("email_choice")
+    random_choice_index = len(TEMP_EMAIL_PROVIDERS) + 1
+    fixed_choices_hint = "/".join(str(index) for index in range(1, len(TEMP_EMAIL_PROVIDERS) + 1))
 
     print("=" * 60)
     print("请选择要使用的临时邮箱网站：")
@@ -225,7 +227,7 @@ def _select_email_provider() -> str | None:
 
     print("=" * 60)
     print("说明：")
-    print("  - 选择 1-6 将固定使用该邮箱网站")
+    print(f"  - 选择 1-{len(TEMP_EMAIL_PROVIDERS)} 将固定使用该邮箱网站")
     print("  - 选择随机将按顺序轮流使用所有邮箱网站")
     print("  - 多线程时会自动分配不同的邮箱避免冲突")
     print("=" * 60)
@@ -235,7 +237,7 @@ def _select_email_provider() -> str | None:
         print("=" * 60)
 
     while True:
-        choice = input("\n请输入选项 (1/2/3/4/5/6/7，输入q退出): ").strip()
+        choice = input(f"\n请输入选项 ({fixed_choices_hint}/{random_choice_index}，输入q退出): ").strip()
 
         if choice.lower() == "q":
             print("已退出程序")
@@ -256,7 +258,7 @@ def _select_email_provider() -> str | None:
                 save_browser_config(email_config)
                 return None
 
-        print("× 无效选项，请输入 1、2、3、4、5、6、7 或 q")
+        print(f"× 无效选项，请输入 {fixed_choices_hint}、{random_choice_index} 或 q")
 
 
 def main(
