@@ -27,6 +27,8 @@
 - Windows 启动入口已切换为 PySide6 图形面板，默认参数为 999 个任务 / 5 线程 / 隐藏浏览器 / 随机邮箱 / Notion 开启
 - Windows 已补 `初始化sd环境.bat`，用于首次自动安装依赖和生成 `.env.local`
 - Windows 浏览器探测已改为无黑窗执行，`.env.local` 写入已改为原子替换
+- Windows 浏览器探测已优先读取注册表中的 Chrome 权威路径
+- Windows 工作线程已显式使用兼容 Playwright 的事件循环类型，减少默认策略漂移
 - Windows `PyInstaller` 已关闭 `UPX`，优先降低公开 GUI 工具的误报率
 - 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`

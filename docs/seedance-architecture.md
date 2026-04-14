@@ -15,13 +15,13 @@
 - `seedance_gui.py`
   - GUI 薄入口，供 Windows `exe` 打包使用。
 - `seedance/orchestration/batch_runner.py`
-  - 负责交互输入、邮箱站点选择、线程池调度、按失败原因聚合统计。
+  - 负责交互输入、邮箱站点选择、线程池调度、按失败原因聚合统计，并显式固定工作线程事件循环类型。
 - `seedance/services/registration_service.py`
   - 负责 Dreamina 注册主流程、积分探测、`sessionid` 抓取。
 - `seedance/services/email_service.py`
   - 负责临时邮箱获取与验证码提取。
 - `seedance/infra/browser_detector.py`
-  - 负责浏览器配置读写与跨平台本地浏览器探测，并在 Windows GUI 模式下避免 `where chrome` 弹黑窗。
+  - 负责浏览器配置读写与跨平台本地浏览器探测，并在 Windows GUI 模式下优先读取注册表、避免 `where chrome` 弹黑窗。
 - `seedance/infra/browser_factory.py`
   - 负责创建 Playwright browser/context，并收敛高风险启动参数。
 - `seedance/infra/account_store.py`

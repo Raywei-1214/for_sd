@@ -14,6 +14,17 @@ from seedance.infra.temp_mail_health import TempMailHealthStore
 logger = get_logger()
 
 
+def _create_worker_event_loop() -> asyncio.AbstractEventLoop:
+    # ================================
+    # 显式固定工作线程事件循环类型
+    # 目的: 避免 Windows 在线程内依赖默认策略时出现兼容漂移
+    # 边界: 仅为注册工作线程创建 loop，不修改主线程全局策略
+    # ================================
+    if sys.platform == "win32":
+        return asyncio.ProactorEventLoop()
+    return asyncio.new_event_loop()
+
+
 def run_single_registration(
     thread_id: int,
     runtime_options: RuntimeOptions,
@@ -22,9 +33,10 @@ def run_single_registration(
     timestamp_filename: str,
     assigned_email_provider: str | None,
 ) -> RegistrationResult:
+    loop: asyncio.AbstractEventLoop | None = None
     try:
         logger.info(f"[线程{thread_id}] 开始注册")
-        loop = asyncio.new_event_loop()
+        loop = _create_worker_event_loop()
         asyncio.set_event_loop(loop)
 
         async def _register() -> RegistrationResult:
@@ -40,7 +52,6 @@ def run_single_registration(
             return await service.register()
 
         result = loop.run_until_complete(_register())
-        loop.close()
         result.thread_id = thread_id
 
         if result.success:
@@ -81,6 +92,10 @@ def run_single_registration(
             failed_step="thread_runner",
             error_message=str(exc),
         )
+    finally:
+        if loop is not None:
+            loop.close()
+        asyncio.set_event_loop(None)
 
 def _log_failure_statistics(results: list[RegistrationResult]) -> None:
     failed_results = [result for result in results if not result.success]

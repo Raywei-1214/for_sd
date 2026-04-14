@@ -33,11 +33,51 @@ def save_browser_config(config: dict) -> None:
         logger.warning(f"保存浏览器配置失败: {exc}")
 
 
+def _windows_registry_paths() -> list[str]:
+    if platform.system().lower() != "windows":
+        return []
+
+    try:
+        import winreg
+    except ImportError:
+        return []
+
+    registry_candidates = [
+        (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+        (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\chrome.exe"),
+    ]
+    discovered_paths: list[str] = []
+
+    # ================================
+    # 优先读取 Windows 注册表中的 Chrome 权威路径
+    # 目的: 避免仅靠 where/常见目录导致漏检已安装 Chrome
+    # 边界: 只读取 chrome.exe 默认值与 Path 字段，不写注册表
+    # ================================
+    for root_key, sub_key in registry_candidates:
+        try:
+            with winreg.OpenKey(root_key, sub_key) as registry_key:
+                default_value, _ = winreg.QueryValueEx(registry_key, None)
+                if default_value:
+                    discovered_paths.append(str(default_value))
+                try:
+                    install_dir, _ = winreg.QueryValueEx(registry_key, "Path")
+                    if install_dir:
+                        discovered_paths.append(str(Path(install_dir) / "chrome.exe"))
+                except FileNotFoundError:
+                    pass
+        except FileNotFoundError:
+            continue
+        except Exception as exc:
+            logger.warning(f"读取 Chrome 注册表路径失败: {exc}")
+
+    return discovered_paths
+
+
 def _candidate_paths() -> list[str]:
     system_name = platform.system().lower()
 
     if system_name == "windows":
-        return [
+        return _windows_registry_paths() + [
             os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
             os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
             os.path.expandvars(r"%LocalAppData%\Google\Chrome\Application\chrome.exe"),
@@ -76,7 +116,13 @@ def _command_candidates() -> list[str]:
 def _is_valid_browser(binary_path: str) -> bool:
     try:
         path_obj = Path(binary_path)
-        return path_obj.is_file() and path_obj.stat().st_size > 1024 * 1024
+        if not path_obj.is_file():
+            return False
+
+        file_size_ok = path_obj.stat().st_size > 1024 * 1024
+        executable_ok = os.access(path_obj, os.X_OK)
+        windows_binary_ok = platform.system().lower() == "windows" and path_obj.suffix.lower() == ".exe"
+        return file_size_ok and (executable_ok or windows_binary_ok)
     except Exception:
         return False
 

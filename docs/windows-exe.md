@@ -17,9 +17,11 @@ Windows 侧改为通过 `PyInstaller` 构建 `sd.exe`，mac 继续保持双击 [
   - 开发态使用项目根目录
   - 打包后使用 `exe` 所在目录
 - Windows 稳定性策略：
+  - 浏览器探测会优先读取注册表中的 Chrome 权威路径，再回退到常见目录和 `where chrome`
   - `where chrome` 会以无黑窗模式执行，避免 GUI 版 `sd.exe` 闪出命令行窗口
   - `.env.local` 改为原子写入，降低被杀软或同步盘占用时写坏配置的概率
   - `PyInstaller` 已关闭 `UPX`，优先降低 Defender / 360 的误报率
+  - 工作线程中的 asyncio loop 已显式固定，降低 Windows 下 Playwright 子进程兼容漂移
 
 ## 构建步骤
 
