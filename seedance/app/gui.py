@@ -5,14 +5,14 @@ from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import dataclass
 from threading import Event
 
-from PySide6.QtCore import QEasingCurve, QObject, QPropertyAnimation, Qt, QThread, QUrl, Signal
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtCore import QEasingCurve, QObject, Qt, QThread, QUrl, QVariantAnimation, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
     QFrame,
-    QGraphicsOpacityEffect,
+    QGraphicsDropShadowEffect,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -359,7 +359,7 @@ class SeedanceMainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.last_summary: BatchSummary | None = None
         self.stop_event: Event | None = None
-        self._button_animations: dict[QPushButton, QPropertyAnimation] = {}
+        self._button_animations: dict[QPushButton, QVariantAnimation] = {}
 
         self.setWindowTitle("拾米 - SD账号注册")
         self.resize(1360, 880)
@@ -692,19 +692,22 @@ class SeedanceMainWindow(QMainWindow):
 
     def _start_button_breathing(self, button: QPushButton) -> None:
         effect = button.graphicsEffect()
-        if not isinstance(effect, QGraphicsOpacityEffect):
-            effect = QGraphicsOpacityEffect(button)
-            effect.setOpacity(1.0)
+        if not isinstance(effect, QGraphicsDropShadowEffect):
+            effect = QGraphicsDropShadowEffect(button)
+            effect.setOffset(0, 0)
             button.setGraphicsEffect(effect)
 
         animation = self._button_animations.get(button)
         if animation is None:
-            animation = QPropertyAnimation(effect, b"opacity", button)
-            animation.setDuration(1100)
-            animation.setStartValue(1.0)
-            animation.setEndValue(0.55)
+            animation = QVariantAnimation(button)
+            animation.setDuration(1400)
+            animation.setStartValue(0.0)
+            animation.setEndValue(1.0)
             animation.setEasingCurve(QEasingCurve.InOutSine)
             animation.setLoopCount(-1)
+            animation.valueChanged.connect(
+                lambda value, target_button=button: self._update_button_glow(target_button, float(value))
+            )
             self._button_animations[button] = animation
 
         animation.start()
@@ -715,8 +718,27 @@ class SeedanceMainWindow(QMainWindow):
             animation.stop()
 
         effect = button.graphicsEffect()
-        if isinstance(effect, QGraphicsOpacityEffect):
-            effect.setOpacity(1.0)
+        if isinstance(effect, QGraphicsDropShadowEffect):
+            effect.setBlurRadius(0)
+            effect.setColor(QColor(0, 0, 0, 0))
+
+    def _update_button_glow(self, button: QPushButton, phase: float) -> None:
+        effect = button.graphicsEffect()
+        if not isinstance(effect, QGraphicsDropShadowEffect):
+            return
+
+        if button.objectName() == "DangerButton":
+            base_color = QColor("#A85448")
+            alpha = int(36 + phase * 54)
+        else:
+            base_color = QColor("#5D7052")
+            alpha = int(42 + phase * 68)
+
+        glow_color = QColor(base_color)
+        glow_color.setAlpha(alpha)
+        effect.setColor(glow_color)
+        effect.setBlurRadius(10 + phase * 14)
+        effect.setOffset(0, 0)
 
     def _set_button_busy_state(self, button: QPushButton, busy: bool) -> None:
         button.setProperty("busy", busy)
