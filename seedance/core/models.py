@@ -89,6 +89,20 @@ class BatchSummary:
     stop_requested: bool = False
 
 
+@dataclass(frozen=True)
+class BatchProgress:
+    planned_total: int
+    completed_count: int
+    success_count: int
+    fail_count: int
+    active_count: int
+    pending_count: int
+    success_rate: float
+    started_at: str
+    elapsed_seconds: float
+    stop_requested: bool = False
+
+
 @dataclass
 class BrowserConfig:
     browser_choice: Optional[str] = None

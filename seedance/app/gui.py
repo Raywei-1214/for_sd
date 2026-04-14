@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -28,7 +29,7 @@ from PySide6.QtWidgets import (
 
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS
 from seedance.core.logger import get_logger
-from seedance.core.models import BatchSummary
+from seedance.core.models import BatchProgress, BatchSummary
 from seedance.infra.notion_client import NotionClient
 from seedance.orchestration.batch_runner import main as run_batch
 
@@ -72,6 +73,22 @@ QFrame#StatCard {
   background: rgba(255, 252, 247, 0.95);
   border: 1px solid rgba(222, 216, 207, 0.72);
   border-radius: 28px;
+}
+
+QProgressBar {
+  min-height: 18px;
+  max-height: 18px;
+  border: 1px solid rgba(222, 216, 207, 0.82);
+  border-radius: 9px;
+  background: rgba(240, 235, 229, 0.86);
+  text-align: center;
+  color: #4A4A40;
+  font-size: 10px;
+}
+
+QProgressBar::chunk {
+  border-radius: 8px;
+  background: qlineargradient(x1: 0, y1: 0, x2: 1, y2: 0, stop: 0 #5D7052, stop: 1 #75896A);
 }
 
 QLabel#Title {
@@ -289,6 +306,7 @@ class BatchWorker(QObject):
     finished = Signal(object)
     failed = Signal(str)
     log_line = Signal(str)
+    progress = Signal(object)
 
     def __init__(self, run_config: GuiRunConfig):
         super().__init__()
@@ -311,6 +329,7 @@ class BatchWorker(QObject):
                     specified_email=self.run_config.specified_email,
                     notion_enabled=self.run_config.notion_enabled,
                     stop_event=self.run_config.stop_event,
+                    progress_callback=self.progress.emit,
                     interactive=False,
                 )
             self.finished.emit(summary)
@@ -546,11 +565,19 @@ class SeedanceMainWindow(QMainWindow):
         detail_layout.setContentsMargins(0, 2, 0, 0)
         layout.addLayout(detail_layout)
 
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, DEFAULT_TOTAL_COUNT)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("0 / %m")
+
+        self.progress_detail_value = self._create_note_label("已完成 0 / 200，运行中 0，待开始 200")
         self.run_status_value = QLabel("待命")
         self.run_status_value.setObjectName("ValueHero")
         self.report_path_value = self._create_note_label("尚未生成运行报告")
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
 
+        detail_layout.addLayout(self._create_value_block("当前进度", self.progress_bar))
+        detail_layout.addWidget(self.progress_detail_value)
         detail_layout.addLayout(self._create_value_block("运行报告", self.report_path_value))
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
         return card
@@ -632,6 +659,31 @@ class SeedanceMainWindow(QMainWindow):
         self.debug_checkbox.setChecked(False)
         self.notion_checkbox.setChecked(True)
         self.total_stat["value"].setText(str(DEFAULT_TOTAL_COUNT))
+        self.progress_bar.setRange(0, DEFAULT_TOTAL_COUNT)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat(f"0 / {DEFAULT_TOTAL_COUNT}")
+        self.progress_detail_value.setText(f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}")
+
+    def _refresh_progress_view(self, progress: BatchProgress) -> None:
+        self.total_stat["value"].setText(str(progress.planned_total))
+        self.success_stat["value"].setText(str(progress.success_count))
+        self.fail_stat["value"].setText(str(progress.fail_count))
+        self.rate_stat["value"].setText(f"{progress.success_rate:.1f}%")
+        self.progress_bar.setRange(0, max(progress.planned_total, 1))
+        self.progress_bar.setValue(progress.completed_count)
+        self.progress_bar.setFormat(f"{progress.completed_count} / {progress.planned_total}")
+        self.progress_detail_value.setText(
+            f"已完成 {progress.completed_count} / {progress.planned_total}，"
+            f"运行中 {progress.active_count}，待开始 {progress.pending_count}"
+        )
+        self.last_result_value.setText(
+            f"运行中，已成功 {progress.success_count}，失败 {progress.fail_count}，已耗时 {progress.elapsed_seconds:.2f} 秒。"
+        )
+        if progress.stop_requested:
+            self.last_result_value.setText(
+                f"停止中，已完成 {progress.completed_count} / {progress.planned_total}，"
+                f"成功 {progress.success_count}，失败 {progress.fail_count}。"
+            )
 
     def _get_log_color(self, message: str) -> str:
         # ================================
@@ -733,6 +785,10 @@ class SeedanceMainWindow(QMainWindow):
         self.success_stat["value"].setText("0")
         self.fail_stat["value"].setText("0")
         self.rate_stat["value"].setText("0.0%")
+        self.progress_bar.setRange(0, run_config.total_count)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat(f"0 / {run_config.total_count}")
+        self.progress_detail_value.setText(f"已完成 0 / {run_config.total_count}，运行中 0，待开始 {run_config.total_count}")
         self.report_path_value.setText("运行中，报告生成后会显示在这里")
         self.last_result_value.setText("任务已启动，等待批量结果...")
         self.stop_button.setText("打断结束")
@@ -751,6 +807,7 @@ class SeedanceMainWindow(QMainWindow):
         # 边界: 不直接从工作线程操作界面控件
         # ================================
         self.worker.log_line.connect(self.append_log)
+        self.worker.progress.connect(self._handle_progress_update)
         self.worker.finished.connect(self._handle_run_finished)
         self.worker.failed.connect(self._handle_run_failed)
         self.worker.finished.connect(lambda _summary: self.worker_thread.quit())
@@ -764,6 +821,10 @@ class SeedanceMainWindow(QMainWindow):
         self.success_stat["value"].setText(str(summary.success_count))
         self.fail_stat["value"].setText(str(summary.fail_count))
         self.rate_stat["value"].setText(f"{summary.success_rate:.1f}%")
+        self.progress_bar.setRange(0, max(summary.total_count, 1))
+        self.progress_bar.setValue(summary.total_count)
+        self.progress_bar.setFormat(f"{summary.total_count} / {summary.total_count}")
+        self.progress_detail_value.setText(f"已完成 {summary.total_count} / {summary.total_count}，运行中 0，待开始 0")
         self.report_path_value.setText(
             f"JSON: {summary.json_report_path}\nCSV: {summary.csv_report_path}"
         )
@@ -779,6 +840,9 @@ class SeedanceMainWindow(QMainWindow):
         self._set_running_state(False)
         self.run_status_value.setText("已打断" if summary.stop_requested else "已完成")
         self.stop_button.setText("打断结束")
+
+    def _handle_progress_update(self, progress: BatchProgress) -> None:
+        self._refresh_progress_view(progress)
 
     def _handle_run_failed(self, error_message: str) -> None:
         self.last_result_value.setText(f"启动失败：{error_message}")

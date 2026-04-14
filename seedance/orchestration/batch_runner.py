@@ -6,7 +6,7 @@ from datetime import datetime
 
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_MAIL_HEALTH_FILE, TEMP_EMAIL_PROVIDERS
 from seedance.core.logger import get_logger
-from seedance.core.models import BatchSummary, RegistrationResult, RuntimeOptions
+from seedance.core.models import BatchProgress, BatchSummary, RegistrationResult, RuntimeOptions
 from seedance.infra.account_store import AccountStore
 from seedance.infra.browser_detector import find_chrome_browser, load_browser_config, save_browser_config
 from seedance.infra.report_writer import RunReportWriter, build_failure_reason
@@ -240,6 +240,7 @@ def main(
     specified_email: str | None = None,
     notion_enabled: bool | None = None,
     stop_event = None,
+    progress_callback=None,
     interactive: bool = True,
 ) -> BatchSummary:
     script_start_time = time.time()
@@ -291,6 +292,30 @@ def main(
     provider_plan = _build_provider_plan(runtime_options, runtime_options.total_count)
 
     stop_requested = False
+    last_progress_emit_time = 0.0
+
+    def _emit_progress(active_count: int, pending_count: int) -> None:
+        nonlocal last_progress_emit_time
+        if progress_callback is None:
+            return
+
+        success_count = sum(1 for result in results if result.success)
+        completed_count = len(results)
+        fail_count = completed_count - success_count
+        progress = BatchProgress(
+            planned_total=runtime_options.total_count,
+            completed_count=completed_count,
+            success_count=success_count,
+            fail_count=fail_count,
+            active_count=active_count,
+            pending_count=pending_count,
+            success_rate=round((success_count / completed_count * 100), 1) if completed_count else 0.0,
+            started_at=script_start_datetime,
+            elapsed_seconds=round(time.time() - script_start_time, 2),
+            stop_requested=stop_requested,
+        )
+        progress_callback(progress)
+        last_progress_emit_time = time.time()
 
     # ================================
     # 这里改成增量调度，配合 stop_event 实现软中断
@@ -323,6 +348,10 @@ def main(
         for _ in range(runtime_options.max_workers):
             if not _submit_next_task():
                 break
+        _emit_progress(
+            active_count=len(running_futures),
+            pending_count=max(runtime_options.total_count - next_task_index, 0),
+        )
 
         while running_futures:
             done_futures, _ = wait(
@@ -334,8 +363,17 @@ def main(
             if runtime_options.stop_event and runtime_options.stop_event.is_set() and not stop_requested:
                 stop_requested = True
                 logger.warning("收到停止请求：不再提交新任务，等待进行中的线程收尾")
+                _emit_progress(
+                    active_count=len(running_futures),
+                    pending_count=max(runtime_options.total_count - next_task_index, 0),
+                )
 
             if not done_futures:
+                if progress_callback and time.time() - last_progress_emit_time >= 2:
+                    _emit_progress(
+                        active_count=len(running_futures),
+                        pending_count=max(runtime_options.total_count - next_task_index, 0),
+                    )
                 continue
 
             for future in done_futures:
@@ -354,9 +392,17 @@ def main(
                     )
 
                 if stop_requested:
+                    _emit_progress(
+                        active_count=len(running_futures),
+                        pending_count=max(runtime_options.total_count - next_task_index, 0),
+                    )
                     continue
 
                 _submit_next_task()
+                _emit_progress(
+                    active_count=len(running_futures),
+                    pending_count=max(runtime_options.total_count - next_task_index, 0),
+                )
 
     completed_count = len(results)
     success_count = sum(1 for result in results if result.success)
@@ -379,6 +425,7 @@ def main(
     logger.info(f"失败: {fail_count} 个")
     if results:
         logger.info(f"成功率: {success_count / len(results) * 100:.1f}%")
+    _emit_progress(active_count=0, pending_count=0)
     _log_failure_statistics(results)
     _update_provider_health(results)
     json_report_path, csv_report_path = RunReportWriter(REPORT_DIR).write(
