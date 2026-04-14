@@ -367,8 +367,8 @@ class BusyAccentButton(QPushButton):
         radius = outer_rect.height() / 2
 
         glow_color = QColor(accent)
-        glow_color.setAlpha(int(88 + self._pulse_strength * 150))
-        glow_pen = QPen(glow_color, 4.2 + self._pulse_strength * 5.6)
+        glow_color.setAlpha(int(140 + self._pulse_strength * 115))
+        glow_pen = QPen(glow_color, 6.8 + self._pulse_strength * 8.8)
         painter.setPen(glow_pen)
         painter.setBrush(Qt.NoBrush)
         painter.drawRoundedRect(outer_rect, radius, radius)
@@ -379,15 +379,16 @@ class BusyAccentButton(QPushButton):
         pillar_core = QColor("#FFF4D8" if self.objectName() == "DangerButton" else "#F6FFE8")
         pillar_core.setAlpha(int(220 + self._pulse_strength * 35))
         pillar_edge = QColor(accent)
-        pillar_edge.setAlpha(int(140 + self._pulse_strength * 90))
+        pillar_edge.setAlpha(int(165 + self._pulse_strength * 90))
         ring_gradient.setColorAt(0.00, transparent)
-        ring_gradient.setColorAt(0.02, pillar_edge)
-        ring_gradient.setColorAt(0.05, pillar_core)
-        ring_gradient.setColorAt(0.10, pillar_edge)
-        ring_gradient.setColorAt(0.18, transparent)
+        ring_gradient.setColorAt(0.015, pillar_edge)
+        ring_gradient.setColorAt(0.04, pillar_core)
+        ring_gradient.setColorAt(0.11, pillar_edge)
+        ring_gradient.setColorAt(0.24, QColor(pillar_edge.red(), pillar_edge.green(), pillar_edge.blue(), 110))
+        ring_gradient.setColorAt(0.38, transparent)
         ring_gradient.setColorAt(1.00, transparent)
 
-        ring_pen = QPen(ring_gradient, 4.2)
+        ring_pen = QPen(ring_gradient, 5.6)
         painter.setPen(ring_pen)
         painter.drawRoundedRect(outer_rect, radius, radius)
         painter.end()
@@ -627,11 +628,9 @@ class SeedanceMainWindow(QMainWindow):
 
         runtime_card = self._build_runtime_card()
         summary_card = self._build_summary_card()
-        action_card = self._build_action_card()
 
         left_column.addWidget(runtime_card)
         left_column.addWidget(summary_card)
-        left_column.addWidget(action_card)
         left_column.addStretch(1)
 
         right_column.addWidget(self._build_log_card(), 1)
@@ -697,8 +696,8 @@ class SeedanceMainWindow(QMainWindow):
         return card
 
     def _build_runtime_card(self) -> QFrame:
-        card = self._create_card("运行参数")
-        card.setMinimumHeight(245)
+        card = self._create_card("执行控制")
+        card.setMinimumHeight(290)
         layout = card.layout()
 
         self.total_count_spin = QSpinBox()
@@ -740,29 +739,22 @@ class SeedanceMainWindow(QMainWindow):
         options_layout.addWidget(self.debug_checkbox)
         options_layout.addWidget(self.notion_checkbox)
         layout.addLayout(options_layout)
-        return card
-
-    def _build_action_card(self) -> QFrame:
-        card = self._create_card("执行控制")
-        card.setMinimumHeight(112)
-        layout = card.layout()
 
         button_row = QHBoxLayout()
-        button_row.setSpacing(10)
+        button_row.setSpacing(8)
+        button_row.setContentsMargins(0, 4, 0, 0)
         layout.addLayout(button_row)
 
         self.start_button = BusyAccentButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.start_button.setFixedSize(116, 44)
+        self.start_button.setFixedSize(104, 40)
         self.start_button.clicked.connect(self.start_run)
 
         self.stop_button = BusyAccentButton("打断结束")
         self.stop_button.setObjectName("DangerButton")
         self.stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.stop_button.setMinimumWidth(132)
-        self.stop_button.setMaximumWidth(156)
-        self.stop_button.setFixedHeight(44)
+        self.stop_button.setFixedSize(112, 40)
         self.stop_button.setDisabled(True)
         self.stop_button.clicked.connect(self.stop_run)
 
@@ -941,7 +933,7 @@ class SeedanceMainWindow(QMainWindow):
         animation = self._button_animations.get(button)
         if animation is None:
             animation = QVariantAnimation(button)
-            animation.setDuration(1720)
+            animation.setDuration(3440)
             animation.setStartValue(0.0)
             animation.setEndValue(1.0)
             animation.setLoopCount(-1)
@@ -975,12 +967,12 @@ class SeedanceMainWindow(QMainWindow):
 
         if button.objectName() == "DangerButton":
             base_color = QColor("#A85448")
-            alpha = int(150 + pulse * 105)
-            blur_radius = 34 + pulse * 38
+            alpha = int(185 + pulse * 70)
+            blur_radius = 52 + pulse * 54
         else:
             base_color = QColor("#5D7052")
-            alpha = int(165 + pulse * 90)
-            blur_radius = 38 + pulse * 42
+            alpha = int(200 + pulse * 55)
+            blur_radius = 56 + pulse * 58
 
         glow_color = QColor(base_color)
         glow_color.setAlpha(alpha)
