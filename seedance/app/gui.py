@@ -938,7 +938,7 @@ class SeedanceMainWindow(QMainWindow):
         self.log_view.append(f'<span style="color: {color};">{safe_message}</span>')
         self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
 
-    def _append_notion_failure_summary(self, notion_failures_path: Path) -> None:
+    def _append_notion_failure_summary(self, notion_failures_path) -> None:
         try:
             payload = __import__("json").loads(notion_failures_path.read_text(encoding="utf-8"))
         except Exception as exc:
