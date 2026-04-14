@@ -449,7 +449,7 @@ def main(
     _emit_progress(active_count=0, pending_count=0)
     _log_failure_statistics(results)
     _update_provider_health(results)
-    json_report_path, csv_report_path = RunReportWriter(REPORT_DIR).write(
+    json_report_path, csv_report_path, notion_failures_path = RunReportWriter(REPORT_DIR).write(
         timestamp=run_timestamp,
         results=results,
         script_start_datetime=script_start_datetime,
@@ -469,6 +469,7 @@ def main(
         duration_seconds=round(script_total_time, 2),
         json_report_path=json_report_path,
         csv_report_path=csv_report_path,
+        notion_failures_path=notion_failures_path,
         timestamp_filename=timestamp_filename,
         stop_requested=stop_requested,
     )

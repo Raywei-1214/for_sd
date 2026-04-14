@@ -17,13 +17,13 @@
 - 页面状态判定已升级为“稳定元素优先，文本兜底”
 - 临时邮箱已引入站点适配器注册表，通用扫描仅作为兼容兜底
 - 批量统计已升级为失败分类统计，可按步骤和原因聚合
-- 每次运行会额外输出 JSON/CSV 报告到 `run_reports/`
+- 每次运行会额外输出 JSON/CSV 报告和 `notion_failures_<timestamp>.json` 到 `run_reports/`
 - Windows 已补 `PyInstaller` 打包链路，mac 保持 `.command` 启动
 - 随机邮箱模式已升级为“健康度优先但不垄断”的轮盘调度
 - 成功账号仍保留本地 txt 备份；Notion 只接收“积分为0且带 sessionid”的成功账号
 - Notion 已切到证书链上下文，专门处理 mac Python 环境的 SSL 根证书问题
 - 失败任务不再写入 Notion
-- Notion 表结构已收敛为 `账号 / 密码 / 国家 / 注册时间 / 邮箱站点` 5 列，并会清理冗余列
+- Notion 表结构已收敛为 `账号 / 密码 / 国家 / 注册时间 / 邮箱站点 / 使用状态` 6 列，并会清理冗余列
 - Windows 启动入口已切换为 PySide6 图形面板，默认参数为 999 个任务 / 5 线程 / 隐藏浏览器 / 随机邮箱 / Notion 开启
 - Windows 已补 `初始化sd环境.bat`，用于首次自动安装依赖和生成 `.env.local`
 - 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理

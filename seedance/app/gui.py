@@ -1089,7 +1089,7 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setFormat(f"{summary.total_count} / {summary.total_count}")
         self.progress_detail_value.setText(f"已完成 {summary.total_count} / {summary.total_count}，运行中 0，待开始 0")
         self.report_path_value.setText(
-            f"JSON: {summary.json_report_path}\nCSV: {summary.csv_report_path}"
+            f"JSON: {summary.json_report_path}\nCSV: {summary.csv_report_path}\nNOTION_FAIL: {summary.notion_failures_path}"
         )
         summary_text = (
             f"总计 {summary.total_count} 个任务，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.2f} 秒。"

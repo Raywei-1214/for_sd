@@ -77,6 +77,45 @@ class RunReportWriter:
             "backup_error": result.backup_error,
         }
 
+    def _build_notion_failure_payload(
+        self,
+        timestamp: str,
+        results: list[RegistrationResult],
+        script_start_datetime: str,
+        script_end_datetime: str,
+        script_total_seconds: float,
+    ) -> dict:
+        notion_failures = []
+        for result in results:
+            if not result.success:
+                continue
+            if result.notion_ok or result.notion_skipped:
+                continue
+            notion_failures.append(
+                {
+                    "thread_id": result.thread_id,
+                    "email": result.email,
+                    "provider_name": result.provider_name,
+                    "sessionid": result.sessionid,
+                    "credits": result.credits,
+                    "country": result.country,
+                    "started_at": result.started_at,
+                    "finished_at": result.finished_at,
+                    "notion_error": result.notion_error,
+                    "backup_ok": result.backup_ok,
+                    "backup_error": result.backup_error,
+                }
+            )
+
+        return {
+            "timestamp": timestamp,
+            "started_at": script_start_datetime,
+            "finished_at": script_end_datetime,
+            "duration_seconds": round(script_total_seconds, 2),
+            "failure_count": len(notion_failures),
+            "failures": notion_failures,
+        }
+
     def write(
         self,
         timestamp: str,
@@ -84,10 +123,11 @@ class RunReportWriter:
         script_start_datetime: str,
         script_end_datetime: str,
         script_total_seconds: float,
-    ) -> tuple[Path, Path]:
+    ) -> tuple[Path, Path, Path]:
         summary = self._build_summary(results)
         json_path = self.report_dir / f"run_report_{timestamp}.json"
         csv_path = self.report_dir / f"run_report_{timestamp}.csv"
+        notion_failures_path = self.report_dir / f"notion_failures_{timestamp}.json"
 
         json_payload = {
             "started_at": script_start_datetime,
@@ -98,6 +138,18 @@ class RunReportWriter:
         }
         json_path.write_text(
             json.dumps(json_payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        notion_failure_payload = self._build_notion_failure_payload(
+            timestamp=timestamp,
+            results=results,
+            script_start_datetime=script_start_datetime,
+            script_end_datetime=script_end_datetime,
+            script_total_seconds=script_total_seconds,
+        )
+        notion_failures_path.write_text(
+            json.dumps(notion_failure_payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
 
@@ -133,4 +185,5 @@ class RunReportWriter:
 
         logger.info(f"运行报告(JSON): {json_path}")
         logger.info(f"运行报告(CSV): {csv_path}")
-        return json_path, csv_path
+        logger.info(f"Notion 失败清单(JSON): {notion_failures_path}")
+        return json_path, csv_path, notion_failures_path

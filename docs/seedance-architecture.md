@@ -114,6 +114,7 @@
 - 运行结束后额外落盘两份报告：
   - `run_reports/run_report_<timestamp>.json`
   - `run_reports/run_report_<timestamp>.csv`
+  - `run_reports/notion_failures_<timestamp>.json`
 - 报告明细会同时记录每条任务的保存结果：
   - `notion_ok`
   - `notion_skipped`
@@ -127,15 +128,16 @@
 - 成功账号会先写入本地 `registered_accounts_usa/`。
 - Notion 只接收“积分为 0 且带有 `sessionid`”的成功账号。
 - 失败任务不再写入 Notion。
-- Notion 表结构强制收敛为 5 列：
+- Notion 表结构强制收敛为 6 列：
   - `账号`
   - `密码`
   - `国家`
   - `注册时间`
   - `邮箱站点`
+  - `使用状态`（默认 `未使用`）
 - 当 Notion 暂时失败时，本地 txt 仍会先落盘，避免成功账号丢失。
 - 当本地 txt 失败时，Notion 仍会继续尝试写入，不让单一路径拖垮整体保存。
-- Schema 同步已改为“保留账号/密码/国家/注册时间/邮箱站点，清理其余列”，避免 Notion 表继续膨胀。
+- Schema 同步已改为“保留账号/密码/国家/注册时间/邮箱站点/使用状态，清理其余列”，避免 Notion 表继续膨胀。
 - Notion 通信优先使用 `certifi` 根证书，修复 mac 上常见的 SSL 证书链缺失问题。
 
 ## 当前桌面交互策略

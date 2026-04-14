@@ -93,6 +93,7 @@ class BatchSummary:
     duration_seconds: float
     json_report_path: Path
     csv_report_path: Path
+    notion_failures_path: Path
     timestamp_filename: str
     stop_requested: bool = False
 
