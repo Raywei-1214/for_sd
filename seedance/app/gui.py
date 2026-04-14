@@ -237,10 +237,12 @@ QPushButton#PrimaryButton:hover {
 }
 
 QPushButton#PrimaryButton[busy="true"],
-QPushButton#PrimaryButton[busy="true"]:disabled {
+QPushButton#PrimaryButton[busy="true"],
+QPushButton#PrimaryButton[locked="true"] {
   background: #5D7052;
   color: #F3F4F1;
   border: 1px solid rgba(93, 112, 82, 0.68);
+  border-radius: 20px;
 }
 
 QPushButton#SecondaryButton {
@@ -264,10 +266,12 @@ QPushButton#DangerButton:hover {
 }
 
 QPushButton#DangerButton[busy="true"],
-QPushButton#DangerButton[busy="true"]:disabled {
+QPushButton#DangerButton[busy="true"],
+QPushButton#DangerButton[locked="true"] {
   background: rgba(168, 84, 72, 0.12);
   color: #A85448;
   border: 2px solid rgba(168, 84, 72, 0.45);
+  border-radius: 20px;
 }
 
 QPushButton:disabled {
@@ -334,6 +338,7 @@ class BusyAccentButton(QPushButton):
     def __init__(self, text: str = "", parent: QWidget | None = None):
         super().__init__(text, parent)
         self._busy_active = False
+        self._locked = False
         self._ring_phase = 0.0
         self._pulse_strength = 0.0
 
@@ -344,10 +349,23 @@ class BusyAccentButton(QPushButton):
             self._pulse_strength = 0.0
         self.update()
 
+    def set_locked_visual_state(self, locked: bool) -> None:
+        self._locked = locked
+        self.setProperty("locked", locked)
+        self.style().unpolish(self)
+        self.style().polish(self)
+        self.update()
+
     def set_busy_visual_phase(self, phase: float) -> None:
         self._ring_phase = phase % 1.0
         self._pulse_strength = (math.sin(phase * math.tau) + 1.0) / 2.0
         self.update()
+
+    def mousePressEvent(self, event) -> None:
+        if self._locked:
+            event.ignore()
+            return
+        super().mousePressEvent(event)
 
     def _resolve_accent_color(self) -> QColor:
         if self.objectName() == "DangerButton":
@@ -755,7 +773,6 @@ class SeedanceMainWindow(QMainWindow):
         self.stop_button.setObjectName("DangerButton")
         self.stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.stop_button.setFixedSize(112, 40)
-        self.stop_button.setDisabled(True)
         self.stop_button.clicked.connect(self.stop_run)
 
         button_row.addWidget(self.start_button)
@@ -922,6 +939,8 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"0 / {DEFAULT_TOTAL_COUNT}")
         self.progress_detail_value.setText(f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}")
+        self._set_button_locked_state(self.start_button, False)
+        self._set_button_locked_state(self.stop_button, True)
 
     def _start_button_breathing(self, button: QPushButton) -> None:
         effect = button.graphicsEffect()
@@ -957,6 +976,14 @@ class SeedanceMainWindow(QMainWindow):
             effect.setColor(QColor(0, 0, 0, 0))
         if isinstance(button, BusyAccentButton):
             button.set_busy_visual_state(False)
+
+    def _set_button_locked_state(self, button: QPushButton, locked: bool) -> None:
+        if isinstance(button, BusyAccentButton):
+            button.set_locked_visual_state(locked)
+        else:
+            button.setProperty("locked", locked)
+            button.style().unpolish(button)
+            button.style().polish(button)
 
     def _update_button_glow(self, button: QPushButton, phase: float) -> None:
         effect = button.graphicsEffect()
@@ -1125,8 +1152,10 @@ class SeedanceMainWindow(QMainWindow):
             return False
 
     def _set_running_state(self, running: bool) -> None:
-        self.start_button.setDisabled(running)
-        self.stop_button.setDisabled(not running)
+        self.start_button.setEnabled(True)
+        self.stop_button.setEnabled(True)
+        self._set_button_locked_state(self.start_button, running)
+        self._set_button_locked_state(self.stop_button, not running)
         self.total_count_spin.setDisabled(running)
         self.max_workers_spin.setDisabled(running)
         self.email_combo.setDisabled(running)
@@ -1145,7 +1174,7 @@ class SeedanceMainWindow(QMainWindow):
 
         self.stop_event.set()
         self.stop_button.setText("等待收尾中")
-        self.stop_button.setDisabled(True)
+        self._set_button_locked_state(self.stop_button, True)
         self._set_button_busy_state(self.stop_button, True)
         self.append_log("已收到打断结束请求：不再启动新任务，正在等待进行中的线程收尾。")
         self.run_status_value.setText("停止中")
