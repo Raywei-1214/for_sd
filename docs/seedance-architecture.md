@@ -126,7 +126,10 @@
 ## 当前账号输出策略
 
 - 成功账号会先写入本地 `registered_accounts_usa/`。
-- Notion 只接收“积分为 0 且带有 `sessionid`”的成功账号。
+- Notion 只接收同时满足以下条件的成功账号：
+  - `积分 = 0`
+  - 带有 `sessionid`
+  - `国家` 不包含 `China`
 - 失败任务不再写入 Notion。
 - Notion 表结构强制收敛为 6 列：
   - `账号`

@@ -112,6 +112,7 @@ NOTION_DATABASE_ID=...
 当前 Notion 只会记录：
 - 积分为 `0`
 - 且带有 `sessionid`
+- 且 `国家` 不包含 `China`
 - 且注册成功的账号
 
 当前 Notion 表仅保留 6 列：

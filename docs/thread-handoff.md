@@ -20,7 +20,7 @@
 - 每次运行会额外输出 JSON/CSV 报告和 `notion_failures_<timestamp>.json` 到 `run_reports/`
 - Windows 已补 `PyInstaller` 打包链路，mac 保持 `.command` 启动
 - 随机邮箱模式已升级为“健康度优先但不垄断”的轮盘调度
-- 成功账号仍保留本地 txt 备份；Notion 只接收“积分为0且带 sessionid”的成功账号
+- 成功账号仍保留本地 txt 备份；Notion 只接收“积分为0、带 sessionid、且国家不含 China”的成功账号
 - Notion 已切到证书链上下文，专门处理 mac Python 环境的 SSL 根证书问题
 - 失败任务不再写入 Notion
 - Notion 表结构已收敛为 `账号 / 密码 / 国家 / 注册时间 / 邮箱站点 / 使用状态` 6 列，并会清理冗余列

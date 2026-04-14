@@ -89,7 +89,10 @@ NOTION_DATABASE_ID=你的 Notion Database ID
 注意：
 
 - `.env.local` 不会提交到 git
-- 当前 Notion 只会写入“积分为 0 且有 sessionid”的成功账号
+- 当前 Notion 只会写入同时满足以下条件的成功账号：
+  - `积分 = 0`
+  - 有 `sessionid`
+  - `国家` 不包含 `China`
 - Notion 表只保留 6 列：
   - `账号`
   - `密码`
@@ -224,6 +227,7 @@ GUI 默认值：
 
 - `credits == 0`
 - `sessionid` 有值
+- `country` 不包含 `China`
 
 不满足条件时：
 
@@ -267,6 +271,7 @@ GUI 默认值：
 
 - 没拿到 `sessionid`
 - `credits` 不是 `0`
+- `country` 包含 `China`
 
 这是当前规则，不是程序异常。
 

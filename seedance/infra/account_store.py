@@ -39,11 +39,15 @@ class AccountStore:
     def _can_sync_success_to_notion(self, result: RegistrationResult) -> tuple[bool, str | None]:
         # ================================
         # 这里只允许“可直接使用的合格账号”进入 Notion 主表
-        # 触发条件: 积分为 0 且成功拿到 sessionid
+        # 触发条件: 积分为 0、成功拿到 sessionid，且出口国家不包含 China
         # 边界: 不影响本地 txt 备份，txt 仍按原逻辑完整保留
         # ================================
         if not result.sessionid:
             return False, "缺少 sessionid"
+
+        country_text = (result.country or "").strip()
+        if "china" in country_text.lower():
+            return False, f"国家命中 China: {country_text}"
 
         credits_value = self._parse_credits(result.credits)
         if credits_value is None:
