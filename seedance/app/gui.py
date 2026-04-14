@@ -1,3 +1,4 @@
+import html
 import logging
 import sys
 from contextlib import redirect_stderr, redirect_stdout
@@ -16,11 +17,11 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
-    QPlainTextEdit,
     QPushButton,
     QScrollArea,
     QSizePolicy,
     QSpinBox,
+    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -139,7 +140,7 @@ QCheckBox::indicator:checked {
 
 QSpinBox,
 QComboBox,
-QPlainTextEdit {
+QTextEdit {
   background: rgba(255, 255, 255, 0.75);
   color: #2C2C24;
   border: 1px solid #DED8CF;
@@ -169,7 +170,7 @@ QComboBox QWidgetLineControl {
 
 QSpinBox:focus,
 QComboBox:focus,
-QPlainTextEdit:focus {
+QTextEdit:focus {
   border: 1px solid rgba(93, 112, 82, 0.48);
 }
 
@@ -231,7 +232,7 @@ QPushButton:disabled {
   border: 1px solid rgba(222, 216, 207, 0.82);
 }
 
-QPlainTextEdit {
+QTextEdit {
   background: rgba(254, 254, 250, 0.95);
   color: #3A392F;
   font-family: "SF Mono", "JetBrains Mono", "Consolas", "Courier New";
@@ -558,9 +559,9 @@ class SeedanceMainWindow(QMainWindow):
         card = self._create_card("实时日志")
         layout = card.layout()
 
-        self.log_view = QPlainTextEdit()
+        self.log_view = QTextEdit()
         self.log_view.setReadOnly(True)
-        self.log_view.setMaximumBlockCount(5000)
+        self.log_view.document().setMaximumBlockCount(5000)
         layout.addWidget(self.log_view, 1)
         return card
 
@@ -632,8 +633,22 @@ class SeedanceMainWindow(QMainWindow):
         self.notion_checkbox.setChecked(True)
         self.total_stat["value"].setText(str(DEFAULT_TOTAL_COUNT))
 
+    def _get_log_color(self, message: str) -> str:
+        # ================================
+        # 这里只负责实时日志配色
+        # 目的: 让“注册成功”和“Notion 写入成功”在界面上更醒目
+        # 边界: 仅影响 GUI 展示，不改变原始日志内容
+        # ================================
+        if "已写入 Notion" in message:
+            return "#C18C5D"
+        if "注册成功" in message:
+            return "#5D7052"
+        return "#3A392F"
+
     def append_log(self, message: str) -> None:
-        self.log_view.appendPlainText(message)
+        safe_message = html.escape(message)
+        color = self._get_log_color(message)
+        self.log_view.append(f'<span style="color: {color};">{safe_message}</span>')
         self.log_view.verticalScrollBar().setValue(self.log_view.verticalScrollBar().maximum())
 
     def clear_log(self) -> None:
