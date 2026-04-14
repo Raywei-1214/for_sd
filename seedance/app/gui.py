@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDialog,
+    QFileDialog,
     QFrame,
     QGraphicsDropShadowEffect,
     QGridLayout,
@@ -26,17 +27,21 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSizePolicy,
     QSpinBox,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
+from pathlib import Path
+
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS
 from seedance.core.env import get_local_env_path, read_local_env_values, update_local_env_values
 from seedance.core.logger import get_logger
-from seedance.core.models import BatchProgress, BatchSummary
+from seedance.core.models import BatchProgress, BatchSummary, WatermarkProgress, WatermarkRunOptions, WatermarkSummary
 from seedance.infra.notion_client import NotionClient
 from seedance.orchestration.batch_runner import main as run_batch
+from seedance.orchestration.watermark_runner import run_watermark_batch
 
 # ================================
 # Organic / Natural 风格样式表
@@ -381,7 +386,9 @@ class BusyAccentButton(QPushButton):
         ring_gradient.setColorAt(0.08, pillar_edge)
         ring_gradient.setColorAt(0.12, transparent)
         ring_gradient.setColorAt(1.00, transparent)
-        painter.setPen(QPen(ring_gradient, 3.0))
+
+        ring_pen = QPen(ring_gradient, 3.0)
+        painter.setPen(ring_pen)
         painter.drawRoundedRect(outer_rect, radius, radius)
         painter.end()
 
@@ -533,6 +540,9 @@ class SeedanceMainWindow(QMainWindow):
         self.worker: BatchWorker | None = None
         self.last_summary: BatchSummary | None = None
         self.stop_event: Event | None = None
+        self.watermark_worker_thread: QThread | None = None
+        self.watermark_worker: QObject | None = None
+        self.watermark_stop_event: Event | None = None
         self._button_animations: dict[QPushButton, QVariantAnimation] = {}
 
         self.setWindowTitle("拾米 - SD账号注册")
@@ -549,11 +559,19 @@ class SeedanceMainWindow(QMainWindow):
         self._apply_defaults()
 
     def closeEvent(self, event) -> None:
-        if self.worker_thread and self.worker_thread.isRunning():
+        registration_running = self.worker_thread and self.worker_thread.isRunning()
+        watermark_running = self.watermark_worker_thread and self.watermark_worker_thread.isRunning()
+        if registration_running or watermark_running:
+            if registration_running and watermark_running:
+                running_text = "当前注册任务和去水印任务都还在执行。"
+            elif registration_running:
+                running_text = "当前注册任务还在执行。"
+            else:
+                running_text = "当前去水印任务还在执行。"
             reply = QMessageBox.question(
                 self,
                 "任务仍在运行",
-                "当前注册任务还在执行。关闭窗口不会主动终止浏览器流程，确认继续关闭吗？",
+                f"{running_text}关闭窗口不会主动终止浏览器流程，确认继续关闭吗？",
                 QMessageBox.Yes | QMessageBox.No,
                 QMessageBox.No,
             )
@@ -575,9 +593,23 @@ class SeedanceMainWindow(QMainWindow):
 
         root_layout.addWidget(self._build_header_card())
 
-        content_layout = QHBoxLayout()
+        # ================================
+        # 主内容区切分为两页 Tab
+        # Tab1: 账号注册（原流程）
+        # Tab2: 视频去水印（新流程）
+        # ================================
+        self.tab_widget = QTabWidget()
+        self.tab_widget.setDocumentMode(True)
+        root_layout.addWidget(self.tab_widget, 1)
+
+        self.tab_widget.addTab(self._build_registration_tab(), "账号注册")
+        self.tab_widget.addTab(self._build_watermark_tab(), "Dreamina 去水印")
+
+    def _build_registration_tab(self) -> QWidget:
+        page = QWidget()
+        content_layout = QHBoxLayout(page)
         content_layout.setSpacing(14)
-        root_layout.addLayout(content_layout, 1)
+        content_layout.setContentsMargins(0, 12, 0, 0)
 
         left_panel = QWidget()
         left_panel.setFixedWidth(500)
@@ -603,6 +635,7 @@ class SeedanceMainWindow(QMainWindow):
         left_column.addStretch(1)
 
         right_column.addWidget(self._build_log_card(), 1)
+        return page
 
     def _build_header_card(self) -> QFrame:
         card = QFrame()
@@ -1231,6 +1264,326 @@ class SeedanceMainWindow(QMainWindow):
         self._set_button_busy_state(self.start_button, False)
         self.stop_button.setText("打断结束")
         self._set_button_busy_state(self.stop_button, False)
+
+
+class WatermarkWorker(QObject):
+    finished = Signal(object)
+    failed = Signal(str)
+    log_line = Signal(str)
+    progress = Signal(object)
+
+    def __init__(self, options: WatermarkRunOptions) -> None:
+        super().__init__()
+        self.options = options
+
+    def run(self) -> None:
+        stream = WorkerStream(self.log_line.emit)
+        try:
+            with redirect_stdout(stream), redirect_stderr(stream):
+                summary = run_watermark_batch(
+                    options=self.options,
+                    progress_callback=self.progress.emit,
+                )
+            self.finished.emit(summary)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+# ================================
+# 为 SeedanceMainWindow 追加去水印 Tab 所需的组件和回调
+# 目的: 保持注册流程代码尽量不动，新功能以扩展方式并入
+# 边界: 所有状态都挂到 self 上，和注册流程的 worker 变量分开命名
+# ================================
+def _build_watermark_tab(self) -> QWidget:
+    page = QWidget()
+    layout = QHBoxLayout(page)
+    layout.setSpacing(14)
+    layout.setContentsMargins(0, 12, 0, 0)
+
+    left_panel = QWidget()
+    left_panel.setFixedWidth(500)
+    left_panel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
+    left_column = QVBoxLayout(left_panel)
+    left_column.setSpacing(14)
+    left_column.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(left_panel, 0)
+
+    right_panel = QWidget()
+    right_column = QVBoxLayout(right_panel)
+    right_column.setSpacing(14)
+    right_column.setContentsMargins(0, 0, 0, 0)
+    layout.addWidget(right_panel, 1)
+
+    input_card = self._create_card("输入目录")
+    input_card.setMinimumHeight(150)
+    input_layout = input_card.layout()
+
+    self.watermark_dir_input = QLineEdit()
+    self.watermark_dir_input.setPlaceholderText("点击右侧按钮选择存放视频的文件夹")
+    self.watermark_dir_input.setReadOnly(True)
+
+    self.watermark_pick_button = QPushButton("选择文件夹")
+    self.watermark_pick_button.setObjectName("SecondaryButton")
+    self.watermark_pick_button.setMinimumWidth(132)
+    self.watermark_pick_button.clicked.connect(self._pick_watermark_dir)
+
+    picker_row = QHBoxLayout()
+    picker_row.setSpacing(8)
+    picker_row.addWidget(self.watermark_dir_input, 1)
+    picker_row.addWidget(self.watermark_pick_button, 0)
+    input_layout.addLayout(picker_row)
+
+    self.watermark_dir_note = self._create_note_label(
+        "仅支持 Dreamina 右下角固定水印；单视频时长需不超过 30 秒。结果写入 cleaned/，报告写入 run_reports/"
+    )
+    input_layout.addWidget(self.watermark_dir_note)
+    left_column.addWidget(input_card)
+
+    summary_card = self._create_card("运行概览")
+    summary_card.setMinimumHeight(200)
+    summary_layout = summary_card.layout()
+
+    stats_grid = QGridLayout()
+    stats_grid.setHorizontalSpacing(8)
+    stats_grid.setVerticalSpacing(8)
+    summary_layout.addLayout(stats_grid)
+
+    self.watermark_total_stat = self._create_stat_card("计划视频", "0")
+    self.watermark_success_stat = self._create_stat_card("成功", "0")
+    self.watermark_fail_stat = self._create_stat_card("失败", "0")
+
+    stats_grid.addWidget(self.watermark_total_stat["card"], 0, 0)
+    stats_grid.addWidget(self.watermark_success_stat["card"], 0, 1)
+    stats_grid.addWidget(self.watermark_fail_stat["card"], 0, 2)
+
+    self.watermark_progress_bar = QProgressBar()
+    self.watermark_progress_bar.setRange(0, 1)
+    self.watermark_progress_bar.setValue(0)
+    self.watermark_progress_bar.setFormat("0 / 0")
+
+    self.watermark_progress_detail = self._create_note_label("待选择目录")
+    self.watermark_current_value = self._create_note_label("当前视频：--")
+    self.watermark_report_value = self._create_note_label("尚未生成运行报告")
+
+    summary_layout.addLayout(self._create_value_block("当前进度", self.watermark_progress_bar))
+    summary_layout.addWidget(self.watermark_progress_detail)
+    summary_layout.addWidget(self.watermark_current_value)
+    summary_layout.addLayout(self._create_value_block("运行报告", self.watermark_report_value))
+    left_column.addWidget(summary_card)
+
+    action_card = self._create_card("执行控制")
+    action_card.setMinimumHeight(112)
+    action_layout = action_card.layout()
+
+    button_row = QHBoxLayout()
+    button_row.setSpacing(10)
+    action_layout.addLayout(button_row)
+
+    self.watermark_start_button = BusyAccentButton("开始去水印")
+    self.watermark_start_button.setObjectName("PrimaryButton")
+    self.watermark_start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    self.watermark_start_button.setFixedSize(140, 44)
+    self.watermark_start_button.clicked.connect(self.start_watermark_run)
+
+    self.watermark_stop_button = BusyAccentButton("打断结束")
+    self.watermark_stop_button.setObjectName("DangerButton")
+    self.watermark_stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+    self.watermark_stop_button.setMinimumWidth(132)
+    self.watermark_stop_button.setFixedHeight(44)
+    self.watermark_stop_button.setDisabled(True)
+    self.watermark_stop_button.clicked.connect(self.stop_watermark_run)
+
+    button_row.addWidget(self.watermark_start_button)
+    button_row.addWidget(self.watermark_stop_button)
+    button_row.addStretch(1)
+
+    left_column.addWidget(action_card)
+    left_column.addStretch(1)
+
+    log_card = self._create_card("去水印日志")
+    log_layout = log_card.layout()
+    self.watermark_log_view = QTextEdit()
+    self.watermark_log_view.setReadOnly(True)
+    self.watermark_log_view.document().setMaximumBlockCount(5000)
+    log_layout.addWidget(self.watermark_log_view, 1)
+    right_column.addWidget(log_card, 1)
+
+    return page
+
+
+def _pick_watermark_dir(self) -> None:
+    directory = QFileDialog.getExistingDirectory(self, "选择视频文件夹")
+    if not directory:
+        return
+    self.watermark_dir_input.setText(directory)
+    self.watermark_progress_detail.setText("已选择目录，启动后会先做 30 秒时长预检，再进入站点处理")
+
+
+def append_watermark_log(self, message: str) -> None:
+    safe_message = html.escape(message)
+    color = "#5D7052" if "成功" in message else ("#A85448" if "失败" in message else "#3A392F")
+    self.watermark_log_view.append(f'<span style="color: {color};">{safe_message}</span>')
+    scrollbar = self.watermark_log_view.verticalScrollBar()
+    scrollbar.setValue(scrollbar.maximum())
+
+
+def _describe_watermark_phase(phase: str) -> str:
+    phase_map = {
+        "launching": "启动浏览器",
+        "precheck": "预检视频",
+        "precheck_ok": "预检通过",
+        "precheck_failed": "预检失败",
+        "processing": "站点处理中",
+        "done": "处理完成",
+        "failed": "处理失败",
+        "no_files": "未发现视频",
+    }
+    return phase_map.get(phase, phase)
+
+
+def _set_watermark_running_state(self, running: bool) -> None:
+    self.watermark_start_button.setDisabled(running)
+    self.watermark_stop_button.setDisabled(not running)
+    self.watermark_pick_button.setDisabled(running)
+
+
+def start_watermark_run(self) -> None:
+    if self.watermark_worker_thread and self.watermark_worker_thread.isRunning():
+        return
+
+    directory_text = self.watermark_dir_input.text().strip()
+    if not directory_text:
+        QMessageBox.warning(self, "缺少目录", "请先选择存放视频的文件夹。")
+        return
+
+    input_dir = Path(directory_text)
+    if not input_dir.exists() or not input_dir.is_dir():
+        QMessageBox.warning(self, "目录无效", f"目录不存在或不是文件夹：\n{input_dir}")
+        return
+
+    self.watermark_stop_event = Event()
+    options = WatermarkRunOptions(
+        input_dir=input_dir,
+        headless=True,
+        stop_event=self.watermark_stop_event,
+    )
+
+    self.watermark_total_stat["value"].setText("0")
+    self.watermark_success_stat["value"].setText("0")
+    self.watermark_fail_stat["value"].setText("0")
+    self.watermark_progress_bar.setRange(0, 1)
+    self.watermark_progress_bar.setValue(0)
+    self.watermark_progress_bar.setFormat("0 / 0")
+    self.watermark_progress_detail.setText("正在预检视频并准备浏览器...")
+    self.watermark_current_value.setText("当前视频：--")
+    self.watermark_report_value.setText("运行中，报告生成后会显示在这里")
+    self.watermark_start_button.setText("正在执行")
+    self._set_button_busy_state(self.watermark_start_button, True)
+    self._set_watermark_running_state(True)
+    self.append_watermark_log("=" * 60)
+    self.append_watermark_log(f"开始去水印: {input_dir}")
+    self.append_watermark_log("能力边界: 仅支持 Dreamina 右下角固定水印，且单视频时长需不超过 30 秒。")
+
+    self.watermark_worker_thread = QThread(self)
+    self.watermark_worker = WatermarkWorker(options)
+    self.watermark_worker.moveToThread(self.watermark_worker_thread)
+    self.watermark_worker.log_line.connect(self.append_watermark_log)
+    self.watermark_worker.progress.connect(self._handle_watermark_progress)
+    self.watermark_worker.finished.connect(self._handle_watermark_finished)
+    self.watermark_worker.failed.connect(self._handle_watermark_failed)
+    self.watermark_worker.finished.connect(lambda _s: self.watermark_worker_thread.quit())
+    self.watermark_worker.failed.connect(lambda _m: self.watermark_worker_thread.quit())
+    self.watermark_worker_thread.started.connect(self.watermark_worker.run)
+    self.watermark_worker_thread.finished.connect(self._cleanup_watermark_worker)
+    self.watermark_worker_thread.start()
+
+
+def stop_watermark_run(self) -> None:
+    if not self.watermark_worker_thread or not self.watermark_worker_thread.isRunning():
+        return
+    if not self.watermark_stop_event or self.watermark_stop_event.is_set():
+        return
+    self.watermark_stop_event.set()
+    self.watermark_stop_button.setDisabled(True)
+    self.watermark_stop_button.setText("等待收尾中")
+    self._set_button_busy_state(self.watermark_stop_button, True)
+    self.append_watermark_log("已收到打断请求，当前视频处理完成后停止。")
+
+
+def _handle_watermark_progress(self, progress: WatermarkProgress) -> None:
+    self.watermark_total_stat["value"].setText(str(progress.total))
+    self.watermark_success_stat["value"].setText(str(progress.success_count))
+    self.watermark_fail_stat["value"].setText(str(progress.fail_count))
+    total_for_bar = max(progress.total, 1)
+    self.watermark_progress_bar.setRange(0, total_for_bar)
+    self.watermark_progress_bar.setValue(progress.completed)
+    self.watermark_progress_bar.setFormat(f"{progress.completed} / {progress.total}")
+    phase_text = _describe_watermark_phase(progress.phase)
+    self.watermark_progress_detail.setText(
+        f"已完成 {progress.completed} / {progress.total}，阶段 {phase_text}，已耗时 {progress.elapsed_seconds:.1f} 秒"
+    )
+    if progress.current_file:
+        self.watermark_current_value.setText(f"当前视频：{progress.current_file}")
+
+
+def _handle_watermark_finished(self, summary: WatermarkSummary) -> None:
+    self.watermark_total_stat["value"].setText(str(summary.total))
+    self.watermark_success_stat["value"].setText(str(summary.success_count))
+    self.watermark_fail_stat["value"].setText(str(summary.fail_count))
+    total_for_bar = max(summary.total, 1)
+    self.watermark_progress_bar.setRange(0, total_for_bar)
+    done = summary.success_count + summary.fail_count
+    self.watermark_progress_bar.setValue(done)
+    self.watermark_progress_bar.setFormat(f"{done} / {summary.total}")
+    tail = ""
+    if summary.aborted and summary.abort_reason:
+        tail = f"\n中止原因: {summary.abort_reason}"
+    elif summary.stop_requested:
+        tail = "\n用户主动中断"
+    self.watermark_report_value.setText(
+        f"报告: {summary.report_path}\n输出: {summary.output_dir}{tail}"
+    )
+    self.watermark_progress_detail.setText(
+        f"完成 {done} / {summary.total}，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.1f} 秒"
+    )
+    self.append_watermark_log("去水印任务结束，统计已刷新。")
+    self._set_watermark_running_state(False)
+    self.watermark_start_button.setText("开始去水印")
+    self._set_button_busy_state(self.watermark_start_button, False)
+    self.watermark_stop_button.setText("打断结束")
+    self._set_button_busy_state(self.watermark_stop_button, False)
+
+
+def _handle_watermark_failed(self, error_message: str) -> None:
+    self.append_watermark_log(f"执行失败: {error_message}")
+    QMessageBox.critical(self, "执行失败", error_message)
+    self._set_watermark_running_state(False)
+    self.watermark_start_button.setText("开始去水印")
+    self._set_button_busy_state(self.watermark_start_button, False)
+    self.watermark_stop_button.setText("打断结束")
+    self._set_button_busy_state(self.watermark_stop_button, False)
+
+
+def _cleanup_watermark_worker(self) -> None:
+    if self.watermark_worker:
+        self.watermark_worker.deleteLater()
+    if self.watermark_worker_thread:
+        self.watermark_worker_thread.deleteLater()
+    self.watermark_worker = None
+    self.watermark_worker_thread = None
+    self.watermark_stop_event = None
+
+
+SeedanceMainWindow._build_watermark_tab = _build_watermark_tab
+SeedanceMainWindow._pick_watermark_dir = _pick_watermark_dir
+SeedanceMainWindow.append_watermark_log = append_watermark_log
+SeedanceMainWindow._set_watermark_running_state = _set_watermark_running_state
+SeedanceMainWindow.start_watermark_run = start_watermark_run
+SeedanceMainWindow.stop_watermark_run = stop_watermark_run
+SeedanceMainWindow._handle_watermark_progress = _handle_watermark_progress
+SeedanceMainWindow._handle_watermark_finished = _handle_watermark_finished
+SeedanceMainWindow._handle_watermark_failed = _handle_watermark_failed
+SeedanceMainWindow._cleanup_watermark_worker = _cleanup_watermark_worker
 
 
 def main() -> int:

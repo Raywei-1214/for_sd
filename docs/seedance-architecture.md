@@ -9,21 +9,29 @@
 - `dreamina_register_playwright_usa.py`
   - 薄入口，保留原命令调用方式，兼容 CLI 与 mac `.command` 启动。
 - `seedance/app/cli.py`
-  - 处理命令行参数，调用批量调度入口。
+  - 处理命令行参数，调用注册批量调度入口，或进入 `watermark` 子命令执行去水印批次。
 - `seedance/app/gui.py`
-  - 负责 PySide6 图形面板、参数控件、实时日志、运行概览与 Notion 预检提示。
+  - 负责 PySide6 图形面板、参数控件、实时日志、运行概览、Notion 预检提示，以及 `Dreamina 去水印` Tab。
 - `seedance_gui.py`
   - GUI 薄入口，供 Windows `exe` 打包使用。
 - `seedance/orchestration/batch_runner.py`
   - 负责交互输入、邮箱站点选择、线程池调度、按失败原因聚合统计，并显式固定工作线程事件循环类型。
+- `seedance/orchestration/watermark_runner.py`
+  - 负责目录扫描、视频时长预检、去水印串行调度与 JSON 运行报告输出。
 - `seedance/services/registration_service.py`
   - 负责 Dreamina 注册主流程、积分探测、`sessionid` 抓取。
+- `seedance/services/watermark_service.py`
+  - 负责单视频去水印调用、异常归一与结果对象构造。
 - `seedance/services/email_service.py`
   - 负责临时邮箱获取与验证码提取。
 - `seedance/infra/browser_detector.py`
   - 负责浏览器配置读写与跨平台本地浏览器探测，并在 Windows GUI 模式下优先读取注册表、避免 `where chrome` 弹黑窗。
 - `seedance/infra/browser_factory.py`
   - 负责创建 Playwright browser/context，并收敛高风险启动参数。
+- `seedance/infra/magiceraser_driver.py`
+  - 负责 `magiceraser.org` 页面自动化：打开站点、上传视频、框选固定区域、触发处理并保存下载结果。
+- `seedance/infra/video_probe.py`
+  - 负责通过 `ffprobe` 读取本地视频时长，在进入网页前做免费额度边界校验。
 - `seedance/infra/account_store.py`
   - 负责线程安全地写入成功账号，按 “Notion + 本地 txt” 独立双写。
 - `seedance/infra/temp_mail_adapters.py`
@@ -55,6 +63,7 @@
 - Windows 构建已关闭 `UPX`，优先降低公开分发场景下的误报率。
 - 旧的“一键启动”批处理与单独安装 Playwright 脚本已移除，避免多入口并存。
 - mac 继续保持双击 `.command` 启动，不强推桌面壳。
+- 去水印能力已补入 GUI 与 CLI，但能力边界明确限制为 `Dreamina 固定右下角水印 + 单视频 <= 30 秒`，不对任意水印位置做泛化承诺。
 
 ## 已识别的病灶
 
@@ -125,11 +134,12 @@
 - 统计输出分两层：
   - 分类统计：看哪类失败最多。
   - 任务明细：看具体线程失败在哪一步、用了哪个邮箱站点。
-- 运行结束后额外落盘两份报告：
-- 运行结束后额外落盘三份报告：
+- 注册运行结束后额外落盘三份报告：
   - `run_reports/run_report_<timestamp>.json`
   - `run_reports/run_report_<timestamp>.csv`
   - `run_reports/notion_failures_<timestamp>.json`
+- 去水印运行结束后额外落盘一份报告：
+  - `run_reports/watermark_run_<timestamp>.json`
 - `run_report.summary` 当前会输出：
   - `total_count`
   - `success_count`
@@ -187,8 +197,14 @@
 - GUI 在启动前会先做 Notion 预检：
   - 能连通则按开启状态执行。
   - 不能连通则弹窗提示是否关闭 Notion 后继续。
+- GUI 第二个 Tab 为 `Dreamina 去水印`：
+  - 先扫描目录内视频
+  - 逐个执行本地时长预检
+  - 仅当全部通过预检时才启动浏览器自动化
+  - 打断结束仅在当前视频收尾后停止后续任务
 - mac：
   - 继续通过 `.command` 调用 CLI，不强制切换到 GUI。
+  - CLI 新增 `watermark` 子命令，可直接执行去水印批次。
 
 ## 当前仓库发布策略
 

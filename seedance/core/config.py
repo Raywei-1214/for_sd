@@ -150,3 +150,20 @@ SUCCESS_READY_TEXT_MARKERS = (
     "generate",
     "credit",
 )
+
+# ================================
+# 去水印（magiceraser.org）相关常量
+# 目的: 把站点 URL、水印相对坐标、超时阈值集中管理
+# 边界: 仅影响 watermark 子模块，不干扰注册流程
+# ================================
+MAGICERASER_URL = "https://magiceraser.org/remove-watermark-from-video/"
+WATERMARK_SUPPORTED_SUFFIXES = (".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm")
+WATERMARK_OUTPUT_SUBDIR = "cleaned"
+WATERMARK_REPORT_DIR = REPORT_DIR
+# Dreamina 生成视频的水印固定在右下角，坐标为相对于视频画面的比例
+WATERMARK_DEFAULT_REGION_RATIO = (0.80, 0.86, 0.18, 0.11)  # (x, y, w, h)
+WATERMARK_UPLOAD_TIMEOUT_MS = 120_000
+WATERMARK_PROCESS_TIMEOUT_MS = 300_000
+WATERMARK_DOWNLOAD_TIMEOUT_MS = 180_000
+WATERMARK_MAX_FREE_SECONDS = 30
+WATERMARK_FFPROBE_TIMEOUT_SECONDS = 10

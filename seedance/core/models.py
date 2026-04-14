@@ -129,3 +129,63 @@ class ProjectContext:
     success_dir: Path
     log_file: Path
     browser_config_file: Path
+
+
+# ================================
+# 去水印任务数据结构
+# 目的: 让 GUI / runner / service 之间只通过强类型对象通信
+# 边界: 与注册流程完全隔离，不复用 RegistrationResult
+# ================================
+@dataclass
+class WatermarkTask:
+    index: int
+    input_path: Path
+    output_path: Path
+
+
+@dataclass
+class WatermarkResult:
+    success: bool
+    index: int
+    input_path: Path
+    output_path: Optional[Path] = None
+    duration_seconds: float = 0.0
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    failed_phase: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WatermarkProgress:
+    total: int
+    completed: int
+    success_count: int
+    fail_count: int
+    current_index: int
+    current_file: Optional[str]
+    phase: str
+    elapsed_seconds: float
+    stop_requested: bool = False
+
+
+@dataclass(frozen=True)
+class WatermarkSummary:
+    total: int
+    success_count: int
+    fail_count: int
+    started_at: str
+    finished_at: str
+    duration_seconds: float
+    report_path: Path
+    output_dir: Path
+    stop_requested: bool = False
+    aborted: bool = False
+    abort_reason: Optional[str] = None
+
+
+@dataclass
+class WatermarkRunOptions:
+    input_dir: Path
+    headless: bool = True
+    stop_event: Optional[Event] = None

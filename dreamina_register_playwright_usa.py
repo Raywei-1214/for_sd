@@ -8,4 +8,4 @@ from seedance.infra.browser_detector import find_chrome_browser
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
