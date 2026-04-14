@@ -3,6 +3,7 @@ import ssl
 import time
 import urllib.error
 import urllib.request
+from dataclasses import dataclass
 
 from seedance.core.env import get_env_value
 from seedance.core.logger import get_logger
@@ -26,6 +27,16 @@ REQUIRED_RESULT_PROPERTIES = {
         }
     },
 }
+
+
+@dataclass(frozen=True)
+class BackupRecord:
+    email: str
+    password: str
+    sessionid: str
+    credits: str
+    country: str
+    seedance_value: str
 
 
 def build_notion_ssl_context() -> ssl.SSLContext:
@@ -168,6 +179,27 @@ class NotionClient:
             f"https://api.notion.com/v1/databases/{self.database_id}",
         )
 
+    def parse_backup_line(self, backup_line: str) -> BackupRecord:
+        line = backup_line.strip()
+        parts = line.split("----")
+        if len(parts) < 6:
+            raise ValueError(f"备份行格式无效: {line}")
+
+        email = parts[0].strip()
+        password = parts[1].strip()
+        sessionid = parts[2].strip().removeprefix("Sessionid=")
+        credits = parts[3].strip().removesuffix("积分")
+        country = parts[4].strip()
+        seedance_value = parts[5].strip()
+        return BackupRecord(
+            email=email,
+            password=password,
+            sessionid=sessionid,
+            credits=credits,
+            country=country,
+            seedance_value=seedance_value,
+        )
+
     def _build_result_properties(self, result: RegistrationResult) -> dict:
         return {
             self._title_property_name: {
@@ -202,6 +234,66 @@ class NotionClient:
             },
         }
 
+    def _build_properties_from_backup(
+        self,
+        backup_record: BackupRecord,
+        provider_name: str | None,
+        registered_at: str | None,
+    ) -> dict:
+        return {
+            self._title_property_name: {
+                "title": [
+                    {"text": {"content": backup_record.email}}
+                ]
+            },
+            "密码": {
+                "rich_text": [
+                    {"text": {"content": backup_record.password}}
+                ]
+            },
+            "国家": {
+                "rich_text": [
+                    {"text": {"content": backup_record.country}}
+                ]
+            },
+            "注册时间": {
+                "rich_text": [
+                    {"text": {"content": registered_at or ""}}
+                ]
+            },
+            "邮箱站点": {
+                "rich_text": [
+                    {"text": {"content": provider_name or ""}}
+                ]
+            },
+            "使用状态": {
+                "select": {
+                    "name": "未使用"
+                }
+            },
+        }
+
+    def has_account(self, email: str) -> bool:
+        if not self.is_configured():
+            raise RuntimeError("Notion 未配置：缺少 NOTION_TOKEN 或 NOTION_DATABASE_ID")
+
+        self.ensure_database_schema()
+        payload = {
+            "filter": {
+                "property": self._title_property_name,
+                "title": {
+                    "equals": email,
+                },
+            },
+            "page_size": 1,
+        }
+        response = self._request_json(
+            "POST",
+            f"https://api.notion.com/v1/databases/{self.database_id}/query",
+            payload=payload,
+        )
+        return bool(response.get("results"))
+
     def create_result_page(self, result: RegistrationResult) -> None:
         if not self.is_configured():
             raise RuntimeError("Notion 未配置：缺少 NOTION_TOKEN 或 NOTION_DATABASE_ID")
@@ -222,3 +314,57 @@ class NotionClient:
             result.email or "unknown",
             result.country or "",
         )
+
+    def create_result_page_from_backup(
+        self,
+        backup_line: str,
+        provider_name: str | None,
+        registered_at: str | None,
+        max_attempts: int = 5,
+    ) -> None:
+        if not self.is_configured():
+            raise RuntimeError("Notion 未配置：缺少 NOTION_TOKEN 或 NOTION_DATABASE_ID")
+
+        backup_record = self.parse_backup_line(backup_line)
+        self.ensure_database_schema()
+
+        if self.has_account(backup_record.email):
+            logger.info("ℹ Notion 已存在同账号，跳过重复写入: %s", backup_record.email)
+            return
+
+        payload = {
+            "parent": {"database_id": self.database_id},
+            "properties": self._build_properties_from_backup(
+                backup_record=backup_record,
+                provider_name=provider_name,
+                registered_at=registered_at,
+            ),
+        }
+
+        # ================================
+        # 外层重试负责覆盖“单次创建页”级别的瞬时异常
+        # 目的: 避免请求层有限重试后，整条账号记录仍因为短暂抖动丢失
+        # 边界: 查重只做一次，最多重试 5 次，不吞最终异常
+        # ================================
+        last_error: Exception | None = None
+        for attempt in range(max_attempts):
+            try:
+                self._request_json(
+                    "POST",
+                    "https://api.notion.com/v1/pages",
+                    payload=payload,
+                )
+                logger.info(
+                    "✓ 已从本地备份写入 Notion: 账号=%s 国家=%s",
+                    backup_record.email,
+                    backup_record.country,
+                )
+                return
+            except Exception as exc:
+                last_error = exc
+                if attempt >= max_attempts - 1:
+                    break
+                time.sleep(2 * (attempt + 1))
+
+        if last_error is not None:
+            raise last_error

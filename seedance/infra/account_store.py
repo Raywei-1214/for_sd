@@ -63,17 +63,25 @@ class AccountStore:
         return eligible
 
     def _write_backup_file(self, result: RegistrationResult, timestamp_filename: str | None = None) -> None:
-        date_str = datetime.now().strftime("%Y%m%d")
-        filename = self.success_dir / f"accounts_{date_str}.txt"
+        self._write_backup_line(
+            self._build_backup_line(result),
+            timestamp_filename=timestamp_filename,
+        )
 
+    def _build_backup_line(self, result: RegistrationResult) -> str:
+        date_str = datetime.now().strftime("%Y%m%d")
         sessionid_str = f"Sessionid={result.sessionid}" if result.sessionid else ""
         credits_str = f"{result.credits}积分" if result.credits is not None else ""
         country_str = result.country or ""
         seedance_str = result.seedance_value or ""
-        content = (
+        return (
             f"{result.email}----{result.password}----{sessionid_str}"
             f"----{credits_str}----{country_str}----{seedance_str}\n"
         )
+
+    def _write_backup_line(self, content: str, timestamp_filename: str | None = None) -> None:
+        date_str = datetime.now().strftime("%Y%m%d")
+        filename = self.success_dir / f"accounts_{date_str}.txt"
 
         with filename.open("a", encoding="utf-8") as handle:
             handle.write(content)
@@ -106,8 +114,9 @@ class AccountStore:
             # 触发条件: 注册成功且拿到邮箱/密码后立即执行
             # 边界: 本地备份只做保险，不替代 Notion 主表
             # ================================
+            backup_line = self._build_backup_line(result)
             try:
-                self._write_backup_file(result, timestamp_filename=timestamp_filename)
+                self._write_backup_line(backup_line, timestamp_filename=timestamp_filename)
                 save_result.backup_ok = True
             except Exception as exc:
                 save_result.backup_error = str(exc)
@@ -115,9 +124,16 @@ class AccountStore:
 
             if self.notion_enabled:
                 can_sync, skip_reason = self._can_sync_success_to_notion(result)
-                if can_sync:
+                if not save_result.backup_ok:
+                    save_result.notion_error = "本地 txt 备份失败，未执行 Notion 同步"
+                    logger.error(f"Notion 未执行: {result.email}，原因: 本地 txt 备份失败")
+                elif can_sync:
                     try:
-                        self.notion_client.create_result_page(result)
+                        self.notion_client.create_result_page_from_backup(
+                            backup_line=backup_line,
+                            provider_name=result.provider_name,
+                            registered_at=result.finished_at or result.started_at,
+                        )
                         save_result.notion_ok = True
                     except Exception as exc:
                         save_result.notion_error = str(exc)

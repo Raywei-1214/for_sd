@@ -122,6 +122,7 @@ NOTION_DATABASE_ID=...
 - 且带有 `sessionid`
 - 且 `国家` 不包含 `China`
 - 且注册成功的账号
+- Notion 会在本地 txt 备份成功后，再根据备份行内容写入，避免主表和本地事实源脱节
 
 当前 Notion 表仅保留 6 列：
 - `账号`
