@@ -64,6 +64,58 @@ class TempEmailService:
                 return
             await asyncio.sleep(1)
 
+    async def _wait_for_internxt_email_ready(self, page: Page, adapter: TempMailAdapter) -> None:
+        # ================================
+        # Internxt 邮箱不是秒出，而是先停在 Generating random email...
+        # 目的: 等待邮箱真实生成，并在卡住时主动点击 Refresh 拉起前端刷新
+        # 边界: 仅对 internxt 生效，不改变其他邮箱站点的等待路径
+        # ================================
+        for attempt in range(20):
+            extracted_email = await self._extract_email_with_adapter(page, adapter)
+            if extracted_email:
+                return
+
+            body_text = await self._get_body_text(page)
+            lowered_text = body_text.lower()
+            if (
+                "generating random email" in lowered_text
+                or "you have 0 new messages" in lowered_text
+            ) and attempt in {4, 9, 14}:
+                await self._refresh_internxt_inbox(page)
+            await asyncio.sleep(1)
+
+    async def _refresh_internxt_inbox(self, page: Page) -> None:
+        try:
+            refresh_button = page.locator("button:has-text('Refresh')").first
+            if await refresh_button.count() and await refresh_button.is_visible():
+                await refresh_button.click(timeout=5000)
+                await asyncio.sleep(2)
+        except Exception:
+            return
+
+    async def _open_internxt_mail_preview(self, page: Page) -> None:
+        # ================================
+        # Internxt 邮件内容可能需要先点进列表项才会展开正文
+        # 目的: 优先点开 Dreamina / CapCut / verification 相关邮件，帮助验证码落到正文
+        # 边界: 只做轻量尝试，不把站点异常点击当成硬失败
+        # ================================
+        preview_selectors = (
+            "text=/Dreamina/i",
+            "text=/CapCut/i",
+            "text=/verification/i",
+            "text=/confirm/i",
+            "text=/code/i",
+        )
+        for selector in preview_selectors:
+            try:
+                preview = page.locator(selector).first
+                if await preview.count() and await preview.is_visible():
+                    await preview.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
     def _pick_provider(self) -> dict:
         if self.specified_email:
             return next(
@@ -320,6 +372,8 @@ class TempEmailService:
 
             if self.provider_name == "tempmail.lol":
                 await self._wait_for_tempmail_email_ready(page, adapter)
+            if self.provider_name == "internxt":
+                await self._wait_for_internxt_email_ready(page, adapter)
 
             logger.info(f"[线程{self.thread_id}] 正在通过站点适配器提取邮箱...")
 
@@ -355,6 +409,10 @@ class TempEmailService:
             for attempt in range(VERIFICATION_WAIT_ATTEMPTS):
                 await asyncio.sleep(3)
                 try:
+                    if adapter.name == "internxt":
+                        await self._refresh_internxt_inbox(email_page)
+                        await self._open_internxt_mail_preview(email_page)
+
                     page_text = await email_page.evaluate("() => document.body.innerText")
                     verification_code = self._extract_code_from_text(page_text, adapter)
                     if not verification_code and adapter.name != GENERIC_TEMP_MAIL_ADAPTER.name:

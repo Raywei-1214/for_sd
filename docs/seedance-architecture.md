@@ -128,7 +128,9 @@
 - `internxt` 当前已补专用提取逻辑：
   - 页面邮箱是前端渲染后的纯文本节点
   - 先等待 `Change email` 按钮出现
-  - 再从短文本节点中提取真实邮箱
+  - 若页面停在 `Generating random email...`，会继续等待邮箱生成，并主动点击 `Refresh` 拉起前端刷新
+  - 验证码阶段会先刷新收件箱，再尝试点开 `Dreamina / CapCut / verification` 相关邮件正文
+  - 最后再从短文本节点和正文文本中提取真实邮箱与验证码
 - `guerrillamail` 当前已补专用提取逻辑：
   - 优先读取 `#email-widget`
   - 其次读取 `input[name='show_email']`
