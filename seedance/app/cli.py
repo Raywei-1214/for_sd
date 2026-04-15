@@ -51,6 +51,13 @@ def _run_registration_command(argv: Sequence[str]) -> int:
         help=f"指定临时邮箱网站: {provider_names}",
     )
     parser.add_argument(
+        "--browser",
+        type=str,
+        default="auto",
+        choices=("auto", "chrome", "chromium"),
+        help="浏览器模式: auto=自动优先本地Chrome, chrome=强制本地Chrome, chromium=强制内置Chromium",
+    )
+    parser.add_argument(
         "--no-notion",
         action="store_true",
         help="关闭 Notion 同步，仅保留本地 txt 与运行报告",
@@ -72,6 +79,7 @@ def _run_registration_command(argv: Sequence[str]) -> int:
         debug_mode=args.debug,
         total_count=args.count,
         max_workers=args.threads,
+        browser_choice=args.browser,
         specified_email=args.email,
         notion_enabled=not args.no_notion,
     )
@@ -134,6 +142,13 @@ def _run_home_check_command(argv: Sequence[str]) -> int:
     parser.add_argument("--concurrency", type=int, default=5, help="首页并发检测数（默认5）")
     parser.add_argument("--show-browser", action="store_true", help="显示浏览器窗口，便于观察页面状态")
     parser.add_argument(
+        "--browser",
+        type=str,
+        default="auto",
+        choices=("auto", "chrome", "chromium"),
+        help="浏览器模式: auto=自动优先本地Chrome, chrome=强制本地Chrome, chromium=强制内置Chromium",
+    )
+    parser.add_argument(
         "--timeout",
         type=int,
         default=15,
@@ -151,6 +166,7 @@ def _run_home_check_command(argv: Sequence[str]) -> int:
         attempts=args.attempts,
         concurrency=args.concurrency,
         headless=not args.show_browser,
+        browser_choice=args.browser,
         goto_timeout_seconds=goto_timeout_seconds,
         ready_timeout_seconds=ready_timeout_seconds,
         pause_seconds=args.pause,

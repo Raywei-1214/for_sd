@@ -184,6 +184,7 @@ GUI 默认值：
 - 注册数量：`999`
 - 并发线程：`5`
 - 邮箱站点：`动态随机`
+- 浏览器内核：`自动`
 - 浏览器模式：隐藏
 - Notion：开启
 
@@ -214,6 +215,12 @@ GUI 默认值：
 python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurrency 5 --timeout 15
 ```
 
+如果要排查“本地 Chrome 插件/账号环境会不会拖慢页面”，可以直接切浏览器内核做对照：
+
+```bash
+python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurrency 5 --browser chromium --timeout 15
+```
+
 常用参数：
 
 - `--show-browser`
@@ -222,6 +229,11 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
   - 连续检测次数，默认 `10`
 - `--concurrency`
   - 首页并发检测数，默认 `5`
+- `--browser`
+  - 浏览器模式，支持：
+    - `auto`：自动优先本地 Chrome
+    - `chrome`：强制本地 Chrome
+    - `chromium`：强制 Playwright 内置 Chromium
 - `--timeout`
   - 兼容旧参数。未单独指定时，同时作为 `goto` 超时和 `ready` 等待秒数，默认 `15`
 - `--goto-timeout`

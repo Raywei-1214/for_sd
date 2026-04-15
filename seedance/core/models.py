@@ -17,6 +17,7 @@ class RuntimeOptions:
     debug_mode: bool
     total_count: int
     max_workers: int
+    browser_choice: str = "auto"
     specified_email: Optional[str] = None
     notion_enabled: Optional[bool] = None
     stop_event: Optional[Event] = None

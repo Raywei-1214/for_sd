@@ -207,8 +207,37 @@ def _sanitize_runtime_options(runtime_options: RuntimeOptions) -> RuntimeOptions
 
     if runtime_options.notion_enabled is None:
         runtime_options.notion_enabled = True
+    runtime_options.browser_choice = (runtime_options.browser_choice or "auto").lower()
 
     return runtime_options
+
+
+def _resolve_browser_path(runtime_options: RuntimeOptions) -> str | None:
+    # ================================
+    # 浏览器选择必须显式可控
+    # 目的: 把“自动 / 本地 Chrome / 内置 Chromium”从隐式探测变成明确策略
+    # 边界: 这里只决定是否提供 executable_path，不直接启动浏览器
+    # ================================
+    browser_choice = (runtime_options.browser_choice or "auto").lower()
+
+    if browser_choice == "chromium":
+        logger.info("[✓] 已强制使用 Playwright 内置 Chromium")
+        return None
+
+    chrome_path = find_chrome_browser()
+    if browser_choice == "chrome":
+        if chrome_path:
+            logger.info(f"[✓] 已强制使用本地 Chrome: {chrome_path}")
+            return chrome_path
+        logger.warning("[!] 已选择本地 Chrome，但未检测到可用 Chrome，将回退 Playwright 内置 Chromium")
+        return None
+
+    if chrome_path:
+        logger.info(f"[✓] 自动使用本地浏览器: {chrome_path}")
+        return chrome_path
+
+    logger.warning("[!] 自动模式下未检测到本地浏览器，将使用 Playwright 内置 Chromium")
+    return None
 
 
 def _select_email_provider() -> str | None:
@@ -266,6 +295,7 @@ def main(
     debug_mode: bool = False,
     total_count: int = DEFAULT_TOTAL_COUNT,
     max_workers: int = DEFAULT_MAX_WORKERS,
+    browser_choice: str = "auto",
     specified_email: str | None = None,
     notion_enabled: bool | None = None,
     stop_event = None,
@@ -281,6 +311,7 @@ def main(
         debug_mode=debug_mode,
         total_count=total_count,
         max_workers=max_workers,
+        browser_choice=browser_choice,
         specified_email=specified_email,
         notion_enabled=notion_enabled,
         stop_event=stop_event,
@@ -300,15 +331,12 @@ def main(
     logger.info(f"并发线程数将为: {runtime_options.max_workers} 个")
     logger.info("🔇 无头模式已启用（浏览器在后台运行，不显示窗口）" if headless else "🖥️ 显示浏览器窗口")
     logger.info("☁️ Notion 同步: 开启" if runtime_options.notion_enabled else "🗂️ Notion 同步: 关闭，仅保留本地输出")
+    logger.info(f"🌐 浏览器模式: {runtime_options.browser_choice}")
 
     if debug_mode:
         logger.info("📷 调试模式已启用（将保存截图）")
 
-    chrome_path = find_chrome_browser()
-    if chrome_path:
-        logger.info(f"[✓] 自动使用本地浏览器: {chrome_path}")
-    else:
-        logger.warning("[!] 未检测到本地浏览器，将使用 Playwright 内置 Chromium")
+    chrome_path = _resolve_browser_path(runtime_options)
 
     if interactive and runtime_options.specified_email is None:
         runtime_options.specified_email = _select_email_provider()

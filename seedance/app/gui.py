@@ -39,6 +39,7 @@ from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_F
 from seedance.core.env import get_local_env_path, read_local_env_values, update_local_env_values
 from seedance.core.logger import get_logger
 from seedance.core.models import BatchProgress, BatchSummary, WatermarkProgress, WatermarkRunOptions, WatermarkSummary
+from seedance.infra.browser_detector import load_browser_config, save_browser_config
 from seedance.infra.notion_client import NotionClient
 from seedance.orchestration.batch_runner import main as run_batch
 from seedance.orchestration.watermark_runner import run_watermark_batch
@@ -282,6 +283,7 @@ class GuiRunConfig:
     headless: bool
     debug_mode: bool
     notion_enabled: bool
+    browser_choice: str
     specified_email: str | None
     stop_event: Event | None
 
@@ -523,6 +525,7 @@ class BatchWorker(QObject):
                     debug_mode=self.run_config.debug_mode,
                     total_count=self.run_config.total_count,
                     max_workers=self.run_config.max_workers,
+                    browser_choice=self.run_config.browser_choice,
                     specified_email=self.run_config.specified_email,
                     notion_enabled=self.run_config.notion_enabled,
                     stop_event=self.run_config.stop_event,
@@ -716,6 +719,12 @@ class SeedanceMainWindow(QMainWindow):
         self.email_combo.addItem(f"{len(TEMP_EMAIL_PROVIDERS) + 1} - 随机", None)
         self.email_combo.setFixedHeight(34)
 
+        self.browser_combo = QComboBox()
+        self.browser_combo.addItem("自动", "auto")
+        self.browser_combo.addItem("本地 Chrome", "chrome")
+        self.browser_combo.addItem("内置 Chromium", "chromium")
+        self.browser_combo.setFixedHeight(34)
+
         form_grid = QGridLayout()
         form_grid.setHorizontalSpacing(8)
         form_grid.setVerticalSpacing(8)
@@ -727,6 +736,7 @@ class SeedanceMainWindow(QMainWindow):
         form_grid.addWidget(self._create_input_card("注册数量", self.total_count_spin, control_width=126), 0, 0)
         form_grid.addWidget(self._create_input_card("并发线程数", self.max_workers_spin, control_width=118), 0, 1)
         form_grid.addWidget(self._create_input_card("邮箱站点", self.email_combo, control_width=138), 0, 2)
+        form_grid.addWidget(self._create_input_card("浏览器内核", self.browser_combo, control_width=138), 1, 0)
 
         self.show_browser_checkbox = QCheckBox("显示浏览器窗口")
         self.debug_checkbox = QCheckBox("调试模式（保存截图）")
@@ -905,9 +915,12 @@ class SeedanceMainWindow(QMainWindow):
         return layout
 
     def _apply_defaults(self) -> None:
+        browser_config = load_browser_config()
         self.total_count_spin.setValue(DEFAULT_TOTAL_COUNT)
         self.max_workers_spin.setValue(DEFAULT_MAX_WORKERS)
         self.email_combo.setCurrentIndex(len(TEMP_EMAIL_PROVIDERS))
+        browser_index = max(0, self.browser_combo.findData(browser_config.get("browser_choice", "auto")))
+        self.browser_combo.setCurrentIndex(browser_index)
         self.show_browser_checkbox.setChecked(False)
         self.debug_checkbox.setChecked(False)
         self.notion_checkbox.setChecked(True)
@@ -1096,12 +1109,14 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_run_config(self) -> GuiRunConfig:
         selected_provider = self.email_combo.currentData()
+        selected_browser = self.browser_combo.currentData() or "auto"
         return GuiRunConfig(
             total_count=self.total_count_spin.value(),
             max_workers=self.max_workers_spin.value(),
             headless=not self.show_browser_checkbox.isChecked(),
             debug_mode=self.debug_checkbox.isChecked(),
             notion_enabled=self.notion_checkbox.isChecked(),
+            browser_choice=selected_browser,
             specified_email=selected_provider,
             stop_event=self.stop_event,
         )
@@ -1141,6 +1156,7 @@ class SeedanceMainWindow(QMainWindow):
         self.total_count_spin.setDisabled(running)
         self.max_workers_spin.setDisabled(running)
         self.email_combo.setDisabled(running)
+        self.browser_combo.setDisabled(running)
         self.show_browser_checkbox.setDisabled(running)
         self.debug_checkbox.setDisabled(running)
         self.notion_checkbox.setDisabled(running)
@@ -1167,6 +1183,10 @@ class SeedanceMainWindow(QMainWindow):
 
         if not self._ensure_notion_ready():
             return
+
+        browser_config = load_browser_config()
+        browser_config["browser_choice"] = self.browser_combo.currentData() or "auto"
+        save_browser_config(browser_config)
 
         self.stop_event = Event()
         run_config = self._build_run_config()

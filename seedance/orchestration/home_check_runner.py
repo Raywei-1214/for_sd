@@ -33,6 +33,7 @@ class HomeCheckAttempt:
 class HomeCheckSummary:
     attempts: int
     concurrency: int
+    browser_choice: str
     goto_timeout_seconds: int
     ready_timeout_seconds: int
     success_count: int
@@ -156,9 +157,32 @@ async def _run_single_home_check(
         )
 
 
+def _resolve_browser_path(browser_choice: str) -> str | None:
+    normalized_choice = (browser_choice or "auto").lower()
+    if normalized_choice == "chromium":
+        logger.info("首页自检已强制使用 Playwright 内置 Chromium")
+        return None
+
+    chrome_path = find_chrome_browser()
+    if normalized_choice == "chrome":
+        if chrome_path:
+            logger.info("首页自检已强制使用本地 Chrome: %s", chrome_path)
+            return chrome_path
+        logger.warning("首页自检指定本地 Chrome，但未检测到可用 Chrome，将回退内置 Chromium")
+        return None
+
+    if chrome_path:
+        logger.info("首页自检自动使用本地浏览器: %s", chrome_path)
+        return chrome_path
+
+    logger.warning("首页自检自动模式下未检测到本地浏览器，将回退 Playwright 内置 Chromium")
+    return None
+
+
 def run_home_check(
     attempts: int = 10,
     headless: bool = True,
+    browser_choice: str = "auto",
     goto_timeout_seconds: int = 15,
     ready_timeout_seconds: int = 15,
     pause_seconds: int = 2,
@@ -176,8 +200,9 @@ def run_home_check(
     ready_timeout_seconds = max(5, int(ready_timeout_seconds))
     pause_seconds = max(0, int(pause_seconds))
     concurrency = max(1, min(int(concurrency), attempts))
+    browser_choice = (browser_choice or "auto").lower()
     started_at = datetime.now()
-    chrome_path = find_chrome_browser()
+    chrome_path = _resolve_browser_path(browser_choice)
     results: list[HomeCheckAttempt] = []
 
     logger.info("=" * 60)
@@ -185,6 +210,7 @@ def run_home_check(
     logger.info("目标地址: %s", DREAMINA_HOME_URL)
     logger.info("检测次数: %s", attempts)
     logger.info("并发数: %s", concurrency)
+    logger.info("浏览器模式: %s", browser_choice)
     logger.info("页面打开超时: %s 秒", goto_timeout_seconds)
     logger.info("页面 ready 等待: %s 秒", ready_timeout_seconds)
     logger.info("浏览器模式: %s", "显示" if not headless else "隐藏")
@@ -247,6 +273,7 @@ def run_home_check(
     summary_payload = {
         "attempts": attempts,
         "concurrency": concurrency,
+        "browser_choice": browser_choice,
         "goto_timeout_seconds": goto_timeout_seconds,
         "ready_timeout_seconds": ready_timeout_seconds,
         "success_count": success_count,
@@ -277,6 +304,7 @@ def run_home_check(
     return HomeCheckSummary(
         attempts=attempts,
         concurrency=concurrency,
+        browser_choice=browser_choice,
         goto_timeout_seconds=goto_timeout_seconds,
         ready_timeout_seconds=ready_timeout_seconds,
         success_count=success_count,
