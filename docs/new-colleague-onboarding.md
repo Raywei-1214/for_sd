@@ -211,7 +211,7 @@ GUI 默认值：
 如果怀疑某个代理节点对 Dreamina 首页不稳定，可以先跑首页自检，不必直接上批量注册：
 
 ```bash
-python3 dreamina_register_playwright_usa.py home-check --attempts 10 --timeout 15
+python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurrency 5 --timeout 15
 ```
 
 常用参数：
@@ -220,6 +220,8 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --timeout 1
   - 显示浏览器，方便肉眼观察页面是否真的 ready
 - `--attempts`
   - 连续检测次数，默认 `10`
+- `--concurrency`
+  - 首页并发检测数，默认 `5`
 - `--timeout`
   - 单次等待首页 ready 的秒数，默认 `15`
 - `--pause`

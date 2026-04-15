@@ -32,6 +32,7 @@ class HomeCheckAttempt:
 @dataclass(frozen=True)
 class HomeCheckSummary:
     attempts: int
+    concurrency: int
     success_count: int
     fail_count: int
     success_rate: float
@@ -157,6 +158,7 @@ def run_home_check(
     headless: bool = True,
     timeout_seconds: int = 15,
     pause_seconds: int = 2,
+    concurrency: int = 5,
 ) -> HomeCheckSummary:
     # ================================
     # 首页自检只聚焦 open_home 这一个公共前置步骤
@@ -168,6 +170,7 @@ def run_home_check(
     attempts = max(1, int(attempts))
     timeout_seconds = max(5, int(timeout_seconds))
     pause_seconds = max(0, int(pause_seconds))
+    concurrency = max(1, min(int(concurrency), attempts))
     started_at = datetime.now()
     chrome_path = find_chrome_browser()
     results: list[HomeCheckAttempt] = []
@@ -176,49 +179,67 @@ def run_home_check(
     logger.info("开始执行首页自检")
     logger.info("目标地址: %s", DREAMINA_HOME_URL)
     logger.info("检测次数: %s", attempts)
+    logger.info("并发数: %s", concurrency)
     logger.info("单次超时: %s 秒", timeout_seconds)
     logger.info("浏览器模式: %s", "显示" if not headless else "隐藏")
     logger.info("本地浏览器: %s", chrome_path or "未找到，回退 Playwright Chromium")
     logger.info("=" * 60)
 
-    for index in range(1, attempts + 1):
-        result = asyncio.run(
-            _run_single_home_check(
-                index=index,
-                chrome_path=chrome_path,
-                headless=headless,
-                timeout_seconds=timeout_seconds,
-            )
-        )
-        results.append(result)
+    async def _run_all_checks() -> list[HomeCheckAttempt]:
+        # ================================
+        # 首页自检要模拟“多线程一起开首页”的真实压力
+        # 目的: 判断节点在并发场景下是否还能稳定把首页拉到 ready
+        # 边界: 只测首页阶段，不进入注册、邮箱、验证码流程
+        # ================================
+        semaphore = asyncio.Semaphore(concurrency)
+        collected_results: list[HomeCheckAttempt] = []
 
-        if result.success:
-            logger.info(
-                "[首页自检 %s/%s] ✅ 成功，耗时 %ss，ready=%s",
-                index,
-                attempts,
-                result.duration_seconds,
-                result.ready_selector,
-            )
-        else:
-            logger.warning(
-                "[首页自检 %s/%s] ❌ 失败，耗时 %ss，原因=%s，url=%s，title=%s",
-                index,
-                attempts,
-                result.duration_seconds,
-                result.error_message or "未记录失败原因",
-                result.url or "-",
-                result.title or "-",
-            )
+        async def _run_index(index: int) -> HomeCheckAttempt:
+            async with semaphore:
+                result = await _run_single_home_check(
+                    index=index,
+                    chrome_path=chrome_path,
+                    headless=headless,
+                    timeout_seconds=timeout_seconds,
+                )
 
-        if pause_seconds and index < attempts:
-            time.sleep(pause_seconds)
+                if result.success:
+                    logger.info(
+                        "[首页自检 %s/%s] ✅ 成功，耗时 %ss，ready=%s",
+                        index,
+                        attempts,
+                        result.duration_seconds,
+                        result.ready_selector,
+                    )
+                else:
+                    logger.warning(
+                        "[首页自检 %s/%s] ❌ 失败，耗时 %ss，原因=%s，url=%s，title=%s",
+                        index,
+                        attempts,
+                        result.duration_seconds,
+                        result.error_message or "未记录失败原因",
+                        result.url or "-",
+                        result.title or "-",
+                    )
+
+                if pause_seconds:
+                    await asyncio.sleep(pause_seconds)
+                return result
+
+        tasks = [asyncio.create_task(_run_index(index)) for index in range(1, attempts + 1)]
+        for task in asyncio.as_completed(tasks):
+            collected_results.append(await task)
+
+        return sorted(collected_results, key=lambda item: item.index)
+
+    results = asyncio.run(_run_all_checks())
 
     finished_at = datetime.now()
     success_count = sum(1 for item in results if item.success)
     fail_count = len(results) - success_count
     summary_payload = {
         "attempts": attempts,
+        "concurrency": concurrency,
         "success_count": success_count,
         "fail_count": fail_count,
         "success_rate": round(success_count / attempts * 100, 1) if attempts else 0.0,
@@ -246,6 +267,7 @@ def run_home_check(
 
     return HomeCheckSummary(
         attempts=attempts,
+        concurrency=concurrency,
         success_count=success_count,
         fail_count=fail_count,
         success_rate=summary_payload["success_rate"],

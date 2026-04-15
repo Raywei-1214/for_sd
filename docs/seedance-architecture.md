@@ -161,6 +161,7 @@
   - `run_reports/notion_failures_<timestamp>.json`
 - 首页自检运行结束后额外落盘一份报告：
   - `run_reports/home_check_<timestamp>.json`
+- 首页自检支持显式指定并发数，默认按 `5` 个首页并发去模拟批量注册的公共前置压力。
 - 去水印运行结束后额外落盘一份报告：
   - `run_reports/watermark_run_<timestamp>.json`
 - `run_report.summary` 当前会输出：

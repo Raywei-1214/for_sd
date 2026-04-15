@@ -131,6 +131,7 @@ def _run_home_check_command(argv: Sequence[str]) -> int:
         description="Dreamina 首页稳定性自检工具",
     )
     parser.add_argument("--attempts", type=int, default=10, help="连续检测次数（默认10次）")
+    parser.add_argument("--concurrency", type=int, default=5, help="首页并发检测数（默认5）")
     parser.add_argument("--show-browser", action="store_true", help="显示浏览器窗口，便于观察页面状态")
     parser.add_argument("--timeout", type=int, default=15, help="单次等待主页 ready 的秒数（默认15秒）")
     parser.add_argument("--pause", type=int, default=2, help="每次检测间隔秒数（默认2秒）")
@@ -138,6 +139,7 @@ def _run_home_check_command(argv: Sequence[str]) -> int:
 
     summary = run_home_check(
         attempts=args.attempts,
+        concurrency=args.concurrency,
         headless=not args.show_browser,
         timeout_seconds=args.timeout,
         pause_seconds=args.pause,
