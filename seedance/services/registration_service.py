@@ -28,6 +28,7 @@ from seedance.core.config import (
     MONTH_OPTION_TEMPLATE_SELECTORS,
     MONTH_SELECT_SELECTORS,
     NEXT_BUTTON_SELECTORS,
+    OPEN_HOME_READY_WAIT_SECONDS,
     PAGE_READY_WAIT_SECONDS,
     POPUP_CLOSE_SELECTORS,
     PROBE_BALANCE_SELECTORS,
@@ -479,7 +480,7 @@ class RegistrationService:
                 home_ready = await self._wait_for_page_state(
                     page,
                     selectors=HOME_READY_SELECTORS,
-                    attempts=PAGE_READY_WAIT_SECONDS,
+                    attempts=OPEN_HOME_READY_WAIT_SECONDS,
                     interval_seconds=1,
                 )
                 if home_ready:

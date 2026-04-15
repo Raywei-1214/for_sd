@@ -33,6 +33,7 @@
 - 临时邮箱站点池当前已恢复 `internxt`，继续停用 `mailpoof`
 - `crazymailing` 已从站点池移除，原因是多次命中 Cloudflare 安全验证页，当前主要是风控问题
 - `主页加载失败` 与 `临时邮箱获取失败` 已补页面上下文采样，并写入运行报告的 `failure_context`
+- 注册主流程里的 `open_home` 已单独把 ready 等待拉到 `20` 秒，只作用于首页阶段，不影响其他页面步骤
 - `guerrillamail` 已补专用邮箱提取链路：`#email-widget -> input[name='show_email'] -> #inbox-id + #gm-host-select`
 - `internxt` 已补专用邮箱提取链路：等待 `Change email` 按钮后，从前端渲染的短文本节点中提取邮箱
 - `mailpoof` 当前真实站点在 `create/random` 路径返回空白页，因此仍不建议放回随机池
