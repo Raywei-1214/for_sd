@@ -206,6 +206,37 @@ GUI 默认值：
 - `run_reports/`
 - `screenshots_usa/`（仅 debug 模式）
 
+## 首页节点自检
+
+如果怀疑某个代理节点对 Dreamina 首页不稳定，可以先跑首页自检，不必直接上批量注册：
+
+```bash
+python3 dreamina_register_playwright_usa.py home-check --attempts 10 --timeout 15
+```
+
+常用参数：
+
+- `--show-browser`
+  - 显示浏览器，方便肉眼观察页面是否真的 ready
+- `--attempts`
+  - 连续检测次数，默认 `10`
+- `--timeout`
+  - 单次等待首页 ready 的秒数，默认 `15`
+- `--pause`
+  - 每次检测的间隔秒数，默认 `2`
+
+输出结果：
+
+- 控制台会打印每次自检是否成功、耗时、页面标题和失败原因
+- 运行结束后会写入：
+  - `run_reports/home_check_<timestamp>.json`
+
+适合用来判断：
+
+- 当前节点是否只能“打开首页壳”
+- 页面是否真的进入可操作状态
+- 某个香港节点是不是只适合手动浏览，不适合自动化并发
+
 ### Windows EXE 运行时
 
 输出会写到 `sd.exe` 同目录：

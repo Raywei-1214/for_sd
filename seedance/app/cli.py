@@ -14,6 +14,7 @@ from seedance.core.config import (
 from seedance.core.logger import get_logger
 from seedance.core.models import WatermarkRunOptions
 from seedance.orchestration.batch_runner import main as run_batch
+from seedance.orchestration.home_check_runner import run_home_check
 from seedance.orchestration.watermark_runner import run_watermark_batch
 
 logger = get_logger()
@@ -23,6 +24,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     raw_args = list(argv if argv is not None else sys.argv[1:])
     if raw_args and raw_args[0] == "watermark":
         return _run_watermark_command(raw_args[1:])
+    if raw_args and raw_args[0] == "home-check":
+        return _run_home_check_command(raw_args[1:])
     return _run_registration_command(raw_args)
 
 
@@ -120,3 +123,24 @@ def _run_watermark_command(argv: Sequence[str]) -> int:
     logger.info("=" * 60)
 
     return 1 if summary.aborted or summary.fail_count > 0 else 0
+
+
+def _run_home_check_command(argv: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(
+        prog="dreamina_register_playwright_usa.py home-check",
+        description="Dreamina 首页稳定性自检工具",
+    )
+    parser.add_argument("--attempts", type=int, default=10, help="连续检测次数（默认10次）")
+    parser.add_argument("--show-browser", action="store_true", help="显示浏览器窗口，便于观察页面状态")
+    parser.add_argument("--timeout", type=int, default=15, help="单次等待主页 ready 的秒数（默认15秒）")
+    parser.add_argument("--pause", type=int, default=2, help="每次检测间隔秒数（默认2秒）")
+    args = parser.parse_args(list(argv))
+
+    summary = run_home_check(
+        attempts=args.attempts,
+        headless=not args.show_browser,
+        timeout_seconds=args.timeout,
+        pause_seconds=args.pause,
+    )
+
+    return 0 if summary.success_count == summary.attempts else 1

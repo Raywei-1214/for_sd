@@ -16,6 +16,8 @@
   - GUI 薄入口，供 Windows `exe` 打包使用。
 - `seedance/orchestration/batch_runner.py`
   - 负责交互输入、邮箱站点选择、线程池调度、按失败原因聚合统计，并显式固定工作线程事件循环类型。
+- `seedance/orchestration/home_check_runner.py`
+  - 负责 Dreamina 首页稳定性自检，只验证 `open_home` 阶段是否能进入可操作状态。
 - `seedance/orchestration/watermark_runner.py`
   - 负责目录扫描、视频时长预检、去水印串行调度与 JSON 运行报告输出。
 - `seedance/services/registration_service.py`
@@ -157,6 +159,8 @@
   - `run_reports/run_report_<timestamp>.json`
   - `run_reports/run_report_<timestamp>.csv`
   - `run_reports/notion_failures_<timestamp>.json`
+- 首页自检运行结束后额外落盘一份报告：
+  - `run_reports/home_check_<timestamp>.json`
 - 去水印运行结束后额外落盘一份报告：
   - `run_reports/watermark_run_<timestamp>.json`
 - `run_report.summary` 当前会输出：
