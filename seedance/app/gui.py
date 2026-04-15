@@ -219,30 +219,20 @@ QComboBox QAbstractItemView {
 
 QPushButton {
   min-height: 40px;
-  border-radius: 22px;
-  padding: 0 18px;
+  border-radius: 20px;
+  padding: 0 14px;
   font-weight: 700;
 }
 
-QPushButton#PrimaryButton {
-  background: #5D7052;
-  color: #F3F4F1;
-  border: 1px solid rgba(93, 112, 82, 0.68);
-  border-radius: 22px;
-  padding: 0 20px;
-}
-
-QPushButton#PrimaryButton:hover {
-  background: #6A7D5F;
-}
-
-QPushButton#PrimaryButton[busy="true"],
+QPushButton#PrimaryButton,
+QPushButton#PrimaryButton:hover,
 QPushButton#PrimaryButton[busy="true"],
 QPushButton#PrimaryButton[locked="true"] {
   background: #5D7052;
   color: #F3F4F1;
   border: 1px solid rgba(93, 112, 82, 0.68);
   border-radius: 20px;
+  padding: 0 14px;
 }
 
 QPushButton#SecondaryButton {
@@ -255,23 +245,15 @@ QPushButton#SecondaryButton:hover {
   background: rgba(230, 220, 205, 0.48);
 }
 
-QPushButton#DangerButton {
-  background: rgba(168, 84, 72, 0.12);
-  color: #A85448;
-  border: 2px solid rgba(168, 84, 72, 0.45);
-}
-
-QPushButton#DangerButton:hover {
-  background: rgba(168, 84, 72, 0.2);
-}
-
-QPushButton#DangerButton[busy="true"],
+QPushButton#DangerButton,
+QPushButton#DangerButton:hover,
 QPushButton#DangerButton[busy="true"],
 QPushButton#DangerButton[locked="true"] {
   background: rgba(168, 84, 72, 0.12);
   color: #A85448;
   border: 2px solid rgba(168, 84, 72, 0.45);
   border-radius: 20px;
+  padding: 0 14px;
 }
 
 QPushButton:disabled {
@@ -766,13 +748,13 @@ class SeedanceMainWindow(QMainWindow):
         self.start_button = BusyAccentButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
         self.start_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.start_button.setFixedSize(104, 40)
+        self.start_button.setFixedSize(96, 40)
         self.start_button.clicked.connect(self.start_run)
 
         self.stop_button = BusyAccentButton("打断结束")
         self.stop_button.setObjectName("DangerButton")
         self.stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.stop_button.setFixedSize(112, 40)
+        self.stop_button.setFixedSize(100, 40)
         self.stop_button.clicked.connect(self.stop_run)
 
         button_row.addWidget(self.start_button)
