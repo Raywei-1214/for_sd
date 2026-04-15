@@ -50,6 +50,7 @@ from seedance.core.config import (
     YEAR_INPUT_SELECTORS,
     PASSWORD_INPUT_SELECTORS,
     HOME_READY_SELECTORS,
+    HOME_READY_TEXT_MARKERS,
     CONFIRMATION_READY_SELECTORS,
     CONFIRMATION_READY_TEXT_MARKERS,
     PROFILE_READY_SELECTORS,
@@ -480,6 +481,7 @@ class RegistrationService:
                 home_ready = await self._wait_for_page_state(
                     page,
                     selectors=HOME_READY_SELECTORS,
+                    text_markers=HOME_READY_TEXT_MARKERS,
                     attempts=OPEN_HOME_READY_WAIT_SECONDS,
                     interval_seconds=1,
                 )

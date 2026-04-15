@@ -101,6 +101,7 @@
 
 - 主页：优先等待 `Create` 菜单等稳定元素出现。
 - 注册主流程里的 `open_home` 在首页壳打开后，会额外等待最多 `20` 秒去命中主页 ready selector。
+- 当首页稳定元素暂时未出现时，`open_home` 会额外用正文文本标记 `Explore / Create Assets` 作为二级 ready 信号。
 - 注册表单页：等待邮箱输入框与密码输入框出现。
 - 验证码页：优先等待验证码输入相关元素，文本 `confirm / verification code / 验证码` 作为兜底。
 - 资料页：等待 `Year / Month / Day` 相关表单元素出现。

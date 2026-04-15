@@ -9,7 +9,7 @@ from pathlib import Path
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 from playwright.async_api import async_playwright
 
-from seedance.core.config import DREAMINA_HOME_URL, HOME_READY_SELECTORS, REPORT_DIR
+from seedance.core.config import DREAMINA_HOME_URL, HOME_READY_SELECTORS, HOME_READY_TEXT_MARKERS, REPORT_DIR
 from seedance.core.logger import get_logger
 from seedance.infra.browser_detector import find_chrome_browser
 from seedance.infra.browser_factory import create_browser_context
@@ -65,7 +65,7 @@ async def _capture_page_context(page) -> tuple[str, str, str]:
     return current_url, title, body_preview
 
 
-async def _find_ready_selector(page) -> str | None:
+async def _find_ready_signal(page) -> str | None:
     for selector in HOME_READY_SELECTORS:
         try:
             node = await page.query_selector(selector)
@@ -73,6 +73,15 @@ async def _find_ready_selector(page) -> str | None:
                 return selector
         except Exception:
             continue
+
+    try:
+        body_text = (await page.evaluate("() => document.body?.innerText || ''")).lower()
+        for marker in HOME_READY_TEXT_MARKERS:
+            if marker.lower() in body_text:
+                return f"text:{marker}"
+    except Exception:
+        pass
+
     return None
 
 
@@ -105,7 +114,7 @@ async def _run_single_home_check(
 
                 ready_selector = None
                 for _ in range(ready_timeout_seconds):
-                    ready_selector = await _find_ready_selector(page)
+                    ready_selector = await _find_ready_signal(page)
                     if ready_selector:
                         current_url, title, body_preview = await _capture_page_context(page)
                         return HomeCheckAttempt(

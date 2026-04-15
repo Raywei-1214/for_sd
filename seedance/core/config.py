@@ -74,6 +74,10 @@ SIGN_UP_TRIGGER_SELECTOR = "span.new-forget-pwd-btn"
 SIGN_UP_TRIGGER_TEXT = "Sign up"
 
 HOME_READY_SELECTORS = CREATE_MENU_SELECTORS
+HOME_READY_TEXT_MARKERS = (
+    "explore",
+    "create assets",
+)
 
 EMAIL_INPUT_SELECTORS = (
     "input[placeholder='Enter email']",
