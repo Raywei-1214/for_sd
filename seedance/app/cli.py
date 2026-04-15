@@ -133,15 +133,26 @@ def _run_home_check_command(argv: Sequence[str]) -> int:
     parser.add_argument("--attempts", type=int, default=10, help="连续检测次数（默认10次）")
     parser.add_argument("--concurrency", type=int, default=5, help="首页并发检测数（默认5）")
     parser.add_argument("--show-browser", action="store_true", help="显示浏览器窗口，便于观察页面状态")
-    parser.add_argument("--timeout", type=int, default=15, help="单次等待主页 ready 的秒数（默认15秒）")
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=15,
+        help="兼容旧参数。未单独指定时，同时作为 goto 超时和 ready 等待秒数（默认15秒）",
+    )
+    parser.add_argument("--goto-timeout", type=int, default=None, help="单次打开首页的超时秒数")
+    parser.add_argument("--ready-timeout", type=int, default=None, help="首页打开后等待 ready 的秒数")
     parser.add_argument("--pause", type=int, default=2, help="每次检测间隔秒数（默认2秒）")
     args = parser.parse_args(list(argv))
+
+    goto_timeout_seconds = args.goto_timeout if args.goto_timeout is not None else args.timeout
+    ready_timeout_seconds = args.ready_timeout if args.ready_timeout is not None else args.timeout
 
     summary = run_home_check(
         attempts=args.attempts,
         concurrency=args.concurrency,
         headless=not args.show_browser,
-        timeout_seconds=args.timeout,
+        goto_timeout_seconds=goto_timeout_seconds,
+        ready_timeout_seconds=ready_timeout_seconds,
         pause_seconds=args.pause,
     )
 

@@ -223,7 +223,11 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - `--concurrency`
   - 首页并发检测数，默认 `5`
 - `--timeout`
-  - 单次等待首页 ready 的秒数，默认 `15`
+  - 兼容旧参数。未单独指定时，同时作为 `goto` 超时和 `ready` 等待秒数，默认 `15`
+- `--goto-timeout`
+  - 单次打开首页的超时秒数，可单独拉长“页面能不能先打开”
+- `--ready-timeout`
+  - 首页打开后额外等待可操作状态的秒数，可单独拉长“页面壳已到但还没 ready”
 - `--pause`
   - 每次检测的间隔秒数，默认 `2`
 

@@ -33,6 +33,8 @@ class HomeCheckAttempt:
 class HomeCheckSummary:
     attempts: int
     concurrency: int
+    goto_timeout_seconds: int
+    ready_timeout_seconds: int
     success_count: int
     fail_count: int
     success_rate: float
@@ -77,7 +79,8 @@ async def _run_single_home_check(
     index: int,
     chrome_path: str | None,
     headless: bool,
-    timeout_seconds: int,
+    goto_timeout_seconds: int,
+    ready_timeout_seconds: int,
 ) -> HomeCheckAttempt:
     started = time.time()
     current_url = ""
@@ -95,12 +98,12 @@ async def _run_single_home_check(
                 page = await context.new_page()
                 await page.goto(
                     DREAMINA_HOME_URL,
-                    timeout=timeout_seconds * 1000,
+                    timeout=goto_timeout_seconds * 1000,
                     wait_until="domcontentloaded",
                 )
 
                 ready_selector = None
-                for _ in range(timeout_seconds):
+                for _ in range(ready_timeout_seconds):
                     ready_selector = await _find_ready_selector(page)
                     if ready_selector:
                         current_url, title, body_preview = await _capture_page_context(page)
@@ -156,7 +159,8 @@ async def _run_single_home_check(
 def run_home_check(
     attempts: int = 10,
     headless: bool = True,
-    timeout_seconds: int = 15,
+    goto_timeout_seconds: int = 15,
+    ready_timeout_seconds: int = 15,
     pause_seconds: int = 2,
     concurrency: int = 5,
 ) -> HomeCheckSummary:
@@ -168,7 +172,8 @@ def run_home_check(
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 
     attempts = max(1, int(attempts))
-    timeout_seconds = max(5, int(timeout_seconds))
+    goto_timeout_seconds = max(5, int(goto_timeout_seconds))
+    ready_timeout_seconds = max(5, int(ready_timeout_seconds))
     pause_seconds = max(0, int(pause_seconds))
     concurrency = max(1, min(int(concurrency), attempts))
     started_at = datetime.now()
@@ -180,7 +185,8 @@ def run_home_check(
     logger.info("目标地址: %s", DREAMINA_HOME_URL)
     logger.info("检测次数: %s", attempts)
     logger.info("并发数: %s", concurrency)
-    logger.info("单次超时: %s 秒", timeout_seconds)
+    logger.info("页面打开超时: %s 秒", goto_timeout_seconds)
+    logger.info("页面 ready 等待: %s 秒", ready_timeout_seconds)
     logger.info("浏览器模式: %s", "显示" if not headless else "隐藏")
     logger.info("本地浏览器: %s", chrome_path or "未找到，回退 Playwright Chromium")
     logger.info("=" * 60)
@@ -200,7 +206,8 @@ def run_home_check(
                     index=index,
                     chrome_path=chrome_path,
                     headless=headless,
-                    timeout_seconds=timeout_seconds,
+                    goto_timeout_seconds=goto_timeout_seconds,
+                    ready_timeout_seconds=ready_timeout_seconds,
                 )
 
                 if result.success:
@@ -240,6 +247,8 @@ def run_home_check(
     summary_payload = {
         "attempts": attempts,
         "concurrency": concurrency,
+        "goto_timeout_seconds": goto_timeout_seconds,
+        "ready_timeout_seconds": ready_timeout_seconds,
         "success_count": success_count,
         "fail_count": fail_count,
         "success_rate": round(success_count / attempts * 100, 1) if attempts else 0.0,
@@ -268,6 +277,8 @@ def run_home_check(
     return HomeCheckSummary(
         attempts=attempts,
         concurrency=concurrency,
+        goto_timeout_seconds=goto_timeout_seconds,
+        ready_timeout_seconds=ready_timeout_seconds,
         success_count=success_count,
         fail_count=fail_count,
         success_rate=summary_payload["success_rate"],

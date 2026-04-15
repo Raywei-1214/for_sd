@@ -162,6 +162,7 @@
 - 首页自检运行结束后额外落盘一份报告：
   - `run_reports/home_check_<timestamp>.json`
 - 首页自检支持显式指定并发数，默认按 `5` 个首页并发去模拟批量注册的公共前置压力。
+- 首页自检支持将 `goto` 超时和 `ready` 等待拆开调参，便于判断到底是“首页没打开”还是“页面壳到了但没 ready”。
 - 去水印运行结束后额外落盘一份报告：
   - `run_reports/watermark_run_<timestamp>.json`
 - `run_report.summary` 当前会输出：
