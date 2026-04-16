@@ -54,6 +54,8 @@ class RegistrationResult:
     finished_at: Optional[str] = None
     error_message: Optional[str] = None
     failure_context: Optional[str] = None
+    sessionid_context: Optional[str] = None
+    probe_context: Optional[str] = None
     account_quality: Optional[str] = None
     account_quality_reason: Optional[str] = None
     notion_ok: bool = False

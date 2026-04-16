@@ -208,6 +208,77 @@ class RegistrationService:
             return None
         return " | ".join(context_parts)
 
+    def _compact_text(self, text: str | None, limit: int = 80) -> str:
+        if not text:
+            return ""
+        compact = re.sub(r"\s+", " ", text).strip()
+        return compact[:limit]
+
+    async def _capture_storage_context(self, page: Page | None) -> str | None:
+        if page is None:
+            return None
+
+        try:
+            local_storage_keys = await page.evaluate(
+                "() => Object.keys(window.localStorage || {}).slice(0, 10)"
+            )
+        except Exception:
+            local_storage_keys = []
+
+        try:
+            session_storage_keys = await page.evaluate(
+                "() => Object.keys(window.sessionStorage || {}).slice(0, 10)"
+            )
+        except Exception:
+            session_storage_keys = []
+
+        context_parts = []
+        if local_storage_keys:
+            context_parts.append(f"local_storage_keys={','.join(local_storage_keys)}")
+        if session_storage_keys:
+            context_parts.append(f"session_storage_keys={','.join(session_storage_keys)}")
+        if not context_parts:
+            return None
+        return " | ".join(context_parts)
+
+    def _format_cookie_snapshot(self, cookies: list[dict] | None) -> str:
+        if not cookies:
+            return "cookie_count=0 | cookie_names=<empty>"
+
+        cookie_names = []
+        for cookie in cookies[:12]:
+            name = cookie.get("name") or "<unknown>"
+            domain = cookie.get("domain") or "<no-domain>"
+            cookie_names.append(f"{name}@{domain}")
+
+        return f"cookie_count={len(cookies)} | cookie_names={','.join(cookie_names)}"
+
+    def _format_probe_context(
+        self,
+        page_context: str | None,
+        seedance_credits: str | None,
+        seedance2_cost: str | None,
+        model_dropdown_found: bool,
+        model_fast_selected: bool,
+        balance_samples: list[str],
+        generate_button_samples: list[str],
+    ) -> str:
+        parts = []
+        if page_context:
+            parts.append(page_context)
+        parts.append(f"seedance_credits={seedance_credits or '<empty>'}")
+        parts.append(f"seedance2_cost={seedance2_cost or '<empty>'}")
+        parts.append(f"model_dropdown_found={'yes' if model_dropdown_found else 'no'}")
+        parts.append(f"model_fast_selected={'yes' if model_fast_selected else 'no'}")
+        parts.append(
+            f"balance_samples={'; '.join(balance_samples[:3]) if balance_samples else '<empty>'}"
+        )
+        parts.append(
+            "generate_button_samples="
+            f"{'; '.join(generate_button_samples[:3]) if generate_button_samples else '<empty>'}"
+        )
+        return " | ".join(parts)
+
     async def save_screenshot(self, page: Page, name: str) -> None:
         if not self.debug_mode:
             return
@@ -373,16 +444,36 @@ class RegistrationService:
         except Exception:
             return None
 
-    async def get_sessionid(self, context) -> str | None:
+    async def get_sessionid(self, context, page: Page | None = None) -> tuple[str | None, str]:
         try:
-            cookies = await context.cookies()
-            for cookie in cookies or []:
-                if cookie["name"].lower() == "sessionid":
-                    logger.info(f"✓✓✓ 成功获取sessionid: {cookie['value']}")
-                    return cookie["value"]
-            return None
+            last_snapshot = "cookie_count=0 | cookie_names=<empty>"
+            # ================================
+            # sessionid 只做短轮询，不默认拉长异常样本耗时
+            # 目的: 尽量等到刚落地的 cookie，同时避免把失败样本拖慢太多
+            # 边界: 只轮询 2 次，未命中后立即落诊断信息
+            # ================================
+            for attempt, wait_seconds in enumerate((0.0, 0.8), start=1):
+                if wait_seconds > 0:
+                    await asyncio.sleep(wait_seconds)
+                cookies = await context.cookies()
+                last_snapshot = self._format_cookie_snapshot(cookies)
+                for cookie in cookies or []:
+                    if cookie["name"].lower() == "sessionid":
+                        logger.info(f"✓✓✓ 成功获取sessionid: {cookie['value']}")
+                        return cookie["value"], f"sessionid_found_attempt={attempt} | {last_snapshot}"
+
+            page_context = await self._capture_page_context(page)
+            storage_context = await self._capture_storage_context(page)
+            context_parts = [f"sessionid_found_attempt=0", last_snapshot]
+            if page_context:
+                context_parts.append(page_context)
+            if storage_context:
+                context_parts.append(storage_context)
+            context_text = " | ".join(context_parts)
+            logger.warning(f"[线程{self.thread_id}] 未采到 sessionid: {context_text}")
+            return None, context_text
         except Exception:
-            return None
+            return None, "sessionid_capture_error"
 
     async def _fill_birth_date(self, page: Page) -> tuple[int, str, int]:
         year = random.randint(1990, 2000)
@@ -449,9 +540,13 @@ class RegistrationService:
         await asyncio.sleep(2)
         return year, month_name, day
 
-    async def _probe_account_state(self, page: Page) -> tuple[str | None, str | None]:
+    async def _probe_account_state(self, page: Page) -> tuple[str | None, str | None, str]:
         seedance2_cost = None
         seedance_credits = None
+        balance_samples: list[str] = []
+        generate_button_samples: list[str] = []
+        model_dropdown_found = False
+        model_fast_selected = False
 
         await page.goto(DREAMINA_VIDEO_URL, timeout=60000)
         await asyncio.sleep(5)
@@ -467,6 +562,9 @@ class RegistrationService:
                     credit_elements = await page.query_selector_all(selector)
                     for element in credit_elements:
                         text = await element.text_content()
+                        compact_text = self._compact_text(text)
+                        if compact_text and compact_text not in balance_samples:
+                            balance_samples.append(compact_text)
                         if text and text.strip().isdigit():
                             seedance_credits = text.strip()
                             break
@@ -485,6 +583,7 @@ class RegistrationService:
                 text = await select_node.text_content()
                 if PROBE_MODEL_DROPDOWN_TEXT in (text or ""):
                     dreamina_dropdown = select_node
+                    model_dropdown_found = True
                     break
 
             if dreamina_dropdown:
@@ -496,6 +595,7 @@ class RegistrationService:
                     if PROBE_MODEL_OPTION_TEXT in (option_text or ""):
                         await option.scroll_into_view_if_needed()
                         await option.click(force=True)
+                        model_fast_selected = True
                         logger.info(f"[线程{self.thread_id}] ✓ 成功选中 2.0 Fast 模型")
                         await asyncio.sleep(2)
                         break
@@ -508,6 +608,9 @@ class RegistrationService:
                     buttons = await page.query_selector_all(selector)
                     for button in buttons:
                         text = await button.text_content()
+                        compact_text = self._compact_text(text)
+                        if compact_text and compact_text not in generate_button_samples:
+                            generate_button_samples.append(compact_text)
                         numbers = re.findall(r"\d+", text or "")
                         if numbers:
                             seedance2_cost = numbers[0]
@@ -520,7 +623,20 @@ class RegistrationService:
                 pass
             await asyncio.sleep(1)
 
-        return seedance2_cost, seedance_credits
+        page_context = await self._capture_page_context(page)
+        probe_context = self._format_probe_context(
+            page_context=page_context,
+            seedance_credits=seedance_credits,
+            seedance2_cost=seedance2_cost,
+            model_dropdown_found=model_dropdown_found,
+            model_fast_selected=model_fast_selected,
+            balance_samples=balance_samples,
+            generate_button_samples=generate_button_samples,
+        )
+        if seedance2_cost is None:
+            logger.warning(f"[线程{self.thread_id}] 未采到 seedance2_cost: {probe_context}")
+
+        return seedance2_cost, seedance_credits, probe_context
 
     async def _open_home_page(self, page: Page, result: RegistrationResult) -> bool:
         self._mark_step(result, RegistrationStep.OPEN_HOME)
@@ -889,13 +1005,15 @@ class RegistrationService:
         await self.close_popups(page)
         credits = await self.get_credits(page)
         ip_country = get_ip_country()
-        seedance2_cost, seedance_credits = await self._probe_account_state(page)
-        sessionid = await self.get_sessionid(context)
+        seedance2_cost, seedance_credits, probe_context = await self._probe_account_state(page)
+        sessionid, sessionid_context = await self.get_sessionid(context, page)
 
         result.success = True
         result.sessionid = sessionid
+        result.sessionid_context = sessionid_context
         result.country = ip_country
         result.seedance_value = seedance2_cost
+        result.probe_context = probe_context
         result.credits = seedance2_cost or seedance_credits or credits
 
     def _log_result_summary(

@@ -337,6 +337,8 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - `notion_skipped`
 - `notion_error`
 - `notion_skip_reason`
+- `sessionid_context`
+- `probe_context`
 
 这样能直接区分“规则跳过”和“真正写入失败”。
 

@@ -223,6 +223,8 @@
   - `notion_skipped`
   - `notion_error`
   - `notion_skip_reason`
+  - `sessionid_context`
+  - `probe_context`
   - `account_quality`
   - `account_quality_reason`
   - `backup_ok`
