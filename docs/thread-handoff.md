@@ -35,10 +35,13 @@
 - `主页加载失败` 与 `临时邮箱获取失败` 已补页面上下文采样，并写入运行报告的 `failure_context`
 - 注册主流程里的 `open_home` 已单独把 ready 等待拉到 `20` 秒，只作用于首页阶段，不影响其他页面步骤
 - `open_home` 现在除了原有 selector，还会用 `Explore / Create Assets` 作为主页正文二级 ready 信号
+- `open_home` 已从“最多 5 次重试”收紧为“最多 1 次重试”，避免网络抖动时反复重打首页
 - `wait_confirmation` 已升级为“验证码页 / 资料页”双状态识别，并在失败时补页面上下文与表单可见性标记
 - `guerrillamail` 已补专用邮箱提取链路：`#email-widget -> input[name='show_email'] -> #inbox-id + #gm-host-select`
 - `internxt` 已补专用邮箱提取链路：等待 `Change email` 按钮后，从前端渲染的短文本节点中提取邮箱
 - `internxt` 的 ready 判定已收紧为“真实邮箱 / Change email / Refresh”，不再把营销页段落误当成收件箱 ready；验证码等待窗口也已拉长
+- 浏览器上下文已启用基础省流拦截：`image / media / font`
+- 邮箱验证码等待已改为“站内轻刷新优先、整页 reload 降频”，避免慢节点下频繁整页刷新
 - `mailpoof` 当前真实站点在 `create/random` 路径返回空白页，因此仍不建议放回随机池
 - `10minutemail.net` 已补超时错误页识别：若落到 `chrome-error://` 或出现 `ERR_CONNECTION_TIMED_OUT`，会判定为加载失败并重试
 - `tempmail.lol` 已补 `Loading...` 等待逻辑：会先等真实邮箱生成，再进入提取

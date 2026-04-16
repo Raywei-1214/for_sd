@@ -29,6 +29,7 @@ from seedance.core.config import (
     MONTH_SELECT_SELECTORS,
     NEXT_BUTTON_SELECTORS,
     OPEN_HOME_READY_WAIT_SECONDS,
+    OPEN_HOME_MAX_ATTEMPTS,
     PAGE_READY_WAIT_SECONDS,
     POPUP_CLOSE_SELECTORS,
     PROBE_BALANCE_SELECTORS,
@@ -475,7 +476,7 @@ class RegistrationService:
         # 页面进入是所有后续动作的前置条件
         # 这里只做“是否成功进入主页”的职责
         # ================================
-        for _ in range(STEP_RETRY_COUNT):
+        for attempt in range(OPEN_HOME_MAX_ATTEMPTS):
             try:
                 await page.goto(DREAMINA_HOME_URL, timeout=60000)
                 home_ready = await self._wait_for_page_state(
@@ -488,7 +489,8 @@ class RegistrationService:
                 if home_ready:
                     return True
             except Exception:
-                await asyncio.sleep(5)
+                if attempt < OPEN_HOME_MAX_ATTEMPTS - 1:
+                    await asyncio.sleep(5)
 
         await self.save_screenshot(page, "error_open_home")
         failure_context = await self._capture_page_context(page)
