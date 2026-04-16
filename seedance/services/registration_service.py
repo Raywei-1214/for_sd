@@ -4,6 +4,7 @@ import random
 import re
 import time
 import urllib.request
+from collections import Counter
 from datetime import datetime
 
 from playwright.async_api import Page, async_playwright
@@ -62,6 +63,44 @@ from seedance.infra.browser_factory import create_browser_context
 from seedance.services.email_service import TempEmailService
 
 logger = get_logger()
+
+
+class NetworkStatsCollector:
+    def __init__(self) -> None:
+        self.request_count = 0
+        self.response_count = 0
+        self.failed_request_count = 0
+        self.transferred_bytes = 0
+        self.request_type_counts: Counter[str] = Counter()
+
+    def attach(self, context) -> None:
+        context.on("request", self._handle_request)
+        context.on("requestfailed", self._handle_request_failed)
+        context.on("response", lambda response: asyncio.create_task(self._handle_response(response)))
+
+    def _handle_request(self, request) -> None:
+        resource_type = request.resource_type or "unknown"
+        self.request_count += 1
+        self.request_type_counts[resource_type] += 1
+
+    def _handle_request_failed(self, _request) -> None:
+        self.failed_request_count += 1
+
+    async def _handle_response(self, response) -> None:
+        self.response_count += 1
+        try:
+            header_value = await response.header_value("content-length")
+            if header_value and header_value.isdigit():
+                self.transferred_bytes += int(header_value)
+        except Exception:
+            return
+
+    def apply_to_result(self, result: RegistrationResult) -> None:
+        result.request_count = self.request_count
+        result.response_count = self.response_count
+        result.failed_request_count = self.failed_request_count
+        result.transferred_bytes = self.transferred_bytes
+        result.request_type_counts = dict(self.request_type_counts)
 
 
 def get_ip_country() -> str:
@@ -674,7 +713,9 @@ class RegistrationService:
             return f"{base_context} | {' | '.join(extra_context)}"
         if extra_context:
             return " | ".join(extra_context)
-        return base_context
+        if base_context:
+            return base_context
+        return "context_capture_empty"
 
     async def _fill_verification_code(
         self,
@@ -803,6 +844,7 @@ class RegistrationService:
         context = None
         main_page = None
         email_page = None
+        network_stats = NetworkStatsCollector()
 
         result = RegistrationResult(
             success=False,
@@ -818,6 +860,7 @@ class RegistrationService:
                 chrome_path=self.chrome_path,
                 headless=self.headless,
             )
+            network_stats.attach(context)
             main_page = await context.new_page()
 
             # ================================
@@ -869,6 +912,7 @@ class RegistrationService:
             result.error_message = str(exc)
             return result
         finally:
+            network_stats.apply_to_result(result)
             finished_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             result.finished_at = finished_at
             result.duration_seconds = time.time() - start_time

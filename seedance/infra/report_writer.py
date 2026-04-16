@@ -57,6 +57,13 @@ class RunReportWriter:
             for result in results
             if result.success and not result.notion_ok and not result.notion_skipped
         )
+        network_request_count = sum(result.request_count for result in results)
+        network_response_count = sum(result.response_count for result in results)
+        network_failed_request_count = sum(result.failed_request_count for result in results)
+        network_transferred_bytes = sum(result.transferred_bytes for result in results)
+        network_request_type_counter = Counter()
+        for result in results:
+            network_request_type_counter.update(result.request_type_counts or {})
         failure_counter = Counter(
             build_failure_reason(result)
             for result in failed_results
@@ -77,6 +84,12 @@ class RunReportWriter:
             "notion_written_count": notion_written_count,
             "notion_skipped_count": notion_skipped_count,
             "notion_failed_count": notion_failed_count,
+            "network_request_count": network_request_count,
+            "network_response_count": network_response_count,
+            "network_failed_request_count": network_failed_request_count,
+            "network_transferred_bytes": network_transferred_bytes,
+            "network_transferred_megabytes": round(network_transferred_bytes / (1024 * 1024), 2),
+            "network_request_type_counts": dict(network_request_type_counter),
             "failure_breakdown": [
                 {"reason": reason, "count": count}
                 for reason, count in failure_counter.most_common()
@@ -106,6 +119,11 @@ class RunReportWriter:
             "notion_skip_reason": result.notion_skip_reason,
             "backup_ok": result.backup_ok,
             "backup_error": result.backup_error,
+            "request_count": result.request_count,
+            "response_count": result.response_count,
+            "failed_request_count": result.failed_request_count,
+            "transferred_bytes": result.transferred_bytes,
+            "request_type_counts": json.dumps(result.request_type_counts, ensure_ascii=False),
         }
 
     def _build_notion_failure_payload(
@@ -210,6 +228,11 @@ class RunReportWriter:
                     "notion_skip_reason",
                     "backup_ok",
                     "backup_error",
+                    "request_count",
+                    "response_count",
+                    "failed_request_count",
+                    "transferred_bytes",
+                    "request_type_counts",
                 ],
             )
             writer.writeheader()

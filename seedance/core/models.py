@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from threading import Event
@@ -53,12 +53,18 @@ class RegistrationResult:
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     error_message: Optional[str] = None
+    failure_context: Optional[str] = None
     notion_ok: bool = False
     notion_skipped: bool = False
     notion_error: Optional[str] = None
     notion_skip_reason: Optional[str] = None
     backup_ok: bool = False
     backup_error: Optional[str] = None
+    request_count: int = 0
+    response_count: int = 0
+    failed_request_count: int = 0
+    transferred_bytes: int = 0
+    request_type_counts: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -96,6 +102,11 @@ class BatchSummary:
     csv_report_path: Path
     notion_failures_path: Path
     timestamp_filename: str
+    network_request_count: int
+    network_response_count: int
+    network_failed_request_count: int
+    network_transferred_bytes: int
+    network_request_type_counts: dict[str, int]
     stop_requested: bool = False
 
 

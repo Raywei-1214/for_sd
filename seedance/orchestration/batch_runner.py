@@ -472,6 +472,14 @@ def main(
     available_count = sum(
         1 for result in results if result.success and account_store.is_notion_eligible(result)
     )
+    network_request_count = sum(result.request_count for result in results)
+    network_response_count = sum(result.response_count for result in results)
+    network_failed_request_count = sum(result.failed_request_count for result in results)
+    network_transferred_bytes = sum(result.transferred_bytes for result in results)
+    network_request_type_counts: dict[str, int] = {}
+    for result in results:
+        for request_type, count in (result.request_type_counts or {}).items():
+            network_request_type_counts[request_type] = network_request_type_counts.get(request_type, 0) + count
     script_end_datetime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     script_total_time = time.time() - script_start_time
     script_minutes = int(script_total_time // 60)
@@ -516,5 +524,10 @@ def main(
         csv_report_path=csv_report_path,
         notion_failures_path=notion_failures_path,
         timestamp_filename=timestamp_filename,
+        network_request_count=network_request_count,
+        network_response_count=network_response_count,
+        network_failed_request_count=network_failed_request_count,
+        network_transferred_bytes=network_transferred_bytes,
+        network_request_type_counts=network_request_type_counts,
         stop_requested=stop_requested,
     )

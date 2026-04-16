@@ -813,11 +813,13 @@ class SeedanceMainWindow(QMainWindow):
         self.run_status_value.setObjectName("ValueHero")
         self.report_path_value = self._create_note_label("尚未生成运行报告")
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
+        self.network_stats_value = self._create_note_label("尚未生成网络统计")
 
         detail_layout.addLayout(self._create_value_block("当前进度", self.progress_bar))
         detail_layout.addWidget(self.progress_detail_value)
         detail_layout.addLayout(self._create_value_block("运行报告", self.report_path_value))
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
+        detail_layout.addLayout(self._create_value_block("请求量/资源量统计", self.network_stats_value))
         return card
 
     def _build_log_card(self) -> QFrame:
@@ -934,6 +936,7 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"0 / {DEFAULT_TOTAL_COUNT}")
         self.progress_detail_value.setText(f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}")
+        self.network_stats_value.setText("尚未生成网络统计")
         self._set_button_locked_state(self.start_button, False)
         self._set_button_locked_state(self.stop_button, True)
 
@@ -1202,6 +1205,7 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_detail_value.setText(f"已完成 0 / {run_config.total_count}，运行中 0，待开始 {run_config.total_count}")
         self.report_path_value.setText("运行中，报告生成后会显示在这里")
         self.last_result_value.setText("任务已启动，等待批量结果...")
+        self.network_stats_value.setText("运行中，网络统计将在批次结束后汇总")
         self.start_button.setText("正在执行")
         self._set_button_busy_state(self.start_button, True)
         self._set_button_busy_state(self.stop_button, False)
@@ -1252,6 +1256,14 @@ class SeedanceMainWindow(QMainWindow):
                 f"运行已打断，已完成 {summary.total_count} 个任务，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.2f} 秒。"
             )
         self.last_result_value.setText(summary_text)
+        network_megabytes = summary.network_transferred_bytes / (1024 * 1024)
+        request_type_text = " / ".join(
+            f"{key}:{value}" for key, value in sorted(summary.network_request_type_counts.items())
+        ) or "无"
+        self.network_stats_value.setText(
+            f"请求 {summary.network_request_count}，响应 {summary.network_response_count}，失败请求 {summary.network_failed_request_count}，"
+            f"累计资源 {network_megabytes:.2f} MB\n类型分布：{request_type_text}"
+        )
         self.append_log("GUI 执行完毕，统计卡片已刷新。")
         self._append_notion_failure_summary(summary.notion_failures_path)
         self._set_running_state(False)
@@ -1266,6 +1278,7 @@ class SeedanceMainWindow(QMainWindow):
 
     def _handle_run_failed(self, error_message: str) -> None:
         self.last_result_value.setText(f"启动失败：{error_message}")
+        self.network_stats_value.setText("启动失败，未生成网络统计")
         self.append_log(f"GUI 执行失败: {error_message}")
         QMessageBox.critical(self, "执行失败", error_message)
         self._set_running_state(False)

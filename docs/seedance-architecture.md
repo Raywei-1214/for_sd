@@ -187,6 +187,12 @@
   - `notion_written_count`
   - `notion_skipped_count`
   - `notion_failed_count`
+  - `network_request_count`
+  - `network_response_count`
+  - `network_failed_request_count`
+  - `network_transferred_bytes`
+  - `network_transferred_megabytes`
+  - `network_request_type_counts`
 - 报告明细会同时记录每条任务的保存结果：
   - `notion_ok`
   - `notion_skipped`
@@ -194,9 +200,16 @@
   - `notion_skip_reason`
   - `backup_ok`
   - `backup_error`
+  - `request_count`
+  - `response_count`
+  - `failed_request_count`
+  - `transferred_bytes`
+  - `request_type_counts`
 - 对于 `主页加载失败` 与 `临时邮箱获取失败`，报告会额外记录：
   - `failure_context`
   - 内容包含当时的 `url / title / body 片段`
+- `wait_confirmation` 当前已改为强制页面采样：
+  - 即使未命中额外状态标记，也会至少写入 `context_capture_empty`，避免报告里继续出现完全空白上下文
 
 ## 当前账号输出策略
 
