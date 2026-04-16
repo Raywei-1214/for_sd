@@ -1,11 +1,11 @@
 import csv
 import json
-import re
 from collections import Counter
 from pathlib import Path
 
 from seedance.core.logger import get_logger
 from seedance.core.models import RegistrationResult
+from seedance.core.notion_rules import evaluate_notion_sync_eligibility
 
 logger = get_logger()
 
@@ -22,25 +22,8 @@ class RunReportWriter:
         self.report_dir.mkdir(parents=True, exist_ok=True)
 
     def _is_notion_eligible(self, result: RegistrationResult) -> bool:
-        if not result.success or not result.sessionid:
-            return False
-
-        country_text = (result.country or "").strip()
-        if "china" in country_text.lower():
-            return False
-
-        credits_text = str(result.credits or "").strip()
-        if not credits_text:
-            return False
-
-        match = re.search(r"-?\d+(?:\.\d+)?", credits_text)
-        if not match:
-            return False
-
-        try:
-            return float(match.group(0)) == 0.0
-        except ValueError:
-            return False
+        eligible, _ = evaluate_notion_sync_eligibility(result)
+        return eligible
 
     def _build_summary(self, results: list[RegistrationResult], script_total_seconds: float) -> dict:
         success_count = sum(1 for result in results if result.success)

@@ -1,11 +1,14 @@
 import os
-import re
 import threading
 from datetime import datetime
 from pathlib import Path
 
 from seedance.core.logger import get_logger
 from seedance.core.models import RegistrationResult, SaveResult
+from seedance.core.notion_rules import (
+    build_backup_line_from_result,
+    evaluate_notion_sync_eligibility,
+)
 from seedance.infra.notion_client import NotionClient
 
 logger = get_logger()
@@ -19,44 +22,17 @@ class AccountStore:
         self.notion_enabled = notion_enabled
         self.notion_client = NotionClient()
 
-    def _parse_credits(self, credits: str | None) -> float | None:
-        if credits is None:
-            return None
-
-        text = str(credits).strip()
-        if not text:
-            return None
-
-        match = re.search(r"-?\d+(?:\.\d+)?", text)
-        if not match:
-            return None
-
-        try:
-            return float(match.group(0))
-        except ValueError:
-            return None
-
-    def _can_sync_success_to_notion(self, result: RegistrationResult) -> tuple[bool, str | None]:
+    def _can_sync_success_to_notion(
+        self,
+        result: RegistrationResult,
+        backup_line: str | None = None,
+    ) -> tuple[bool, str | None]:
         # ================================
         # 这里只允许“可直接使用的合格账号”进入 Notion 主表
-        # 触发条件: 积分为 0、成功拿到 sessionid，且出口国家不包含 China
+        # 触发条件: sessionid 存在、积分为 0、国家不含 China、备份行以 ----0 结尾
         # 边界: 不影响本地 txt 备份，txt 仍按原逻辑完整保留
         # ================================
-        if not result.sessionid:
-            return False, "缺少 sessionid"
-
-        country_text = (result.country or "").strip()
-        if "china" in country_text.lower():
-            return False, f"国家命中 China: {country_text}"
-
-        credits_value = self._parse_credits(result.credits)
-        if credits_value is None:
-            return False, "积分缺失或无法识别"
-
-        if credits_value != 0:
-            return False, f"积分不为0: {result.credits}"
-
-        return True, None
+        return evaluate_notion_sync_eligibility(result, backup_line=backup_line)
 
     def is_notion_eligible(self, result: RegistrationResult) -> bool:
         eligible, _ = self._can_sync_success_to_notion(result)
@@ -69,15 +45,7 @@ class AccountStore:
         )
 
     def _build_backup_line(self, result: RegistrationResult) -> str:
-        date_str = datetime.now().strftime("%Y%m%d")
-        sessionid_str = f"Sessionid={result.sessionid}" if result.sessionid else ""
-        credits_str = f"{result.credits}积分" if result.credits is not None else ""
-        country_str = result.country or ""
-        seedance_str = result.seedance_value or ""
-        return (
-            f"{result.email}----{result.password}----{sessionid_str}"
-            f"----{credits_str}----{country_str}----{seedance_str}\n"
-        )
+        return build_backup_line_from_result(result)
 
     def _write_backup_line(self, content: str, timestamp_filename: str | None = None) -> None:
         date_str = datetime.now().strftime("%Y%m%d")
@@ -123,7 +91,10 @@ class AccountStore:
                 logger.error(f"本地备份写入失败: {exc}", exc_info=True)
 
             if self.notion_enabled:
-                can_sync, skip_reason = self._can_sync_success_to_notion(result)
+                can_sync, skip_reason = self._can_sync_success_to_notion(
+                    result,
+                    backup_line=backup_line,
+                )
                 if not save_result.backup_ok:
                     save_result.notion_error = "本地 txt 备份失败，未执行 Notion 同步"
                     logger.error(f"Notion 未执行: {result.email}，原因: 本地 txt 备份失败")

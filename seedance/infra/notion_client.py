@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from seedance.core.env import get_env_value
 from seedance.core.logger import get_logger
 from seedance.core.models import RegistrationResult
+from seedance.core.notion_rules import NOTION_SYNC_SUFFIX, backup_line_has_notion_sync_suffix
 
 logger = get_logger()
 
@@ -324,6 +325,14 @@ class NotionClient:
     ) -> None:
         if not self.is_configured():
             raise RuntimeError("Notion 未配置：缺少 NOTION_TOKEN 或 NOTION_DATABASE_ID")
+
+        # ================================
+        # 客户端层再做一次硬校验，防止上游漏判后把脏数据写进主表
+        # 触发条件: 任何调用方尝试直接拿备份行写入 Notion
+        # 边界: 只拒绝不满足 ----0 结尾的数据，不改本地备份
+        # ================================
+        if not backup_line_has_notion_sync_suffix(backup_line):
+            raise RuntimeError(f"Notion 写入拒绝：备份行未以 {NOTION_SYNC_SUFFIX} 结尾")
 
         backup_record = self.parse_backup_line(backup_line)
         self.ensure_database_schema()

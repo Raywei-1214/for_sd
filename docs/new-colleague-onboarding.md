@@ -327,6 +327,7 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - 没拿到 `sessionid`
 - `credits` 不是 `0`
 - `country` 包含 `China`
+- 本地备份行不是以 `----0` 结尾
 
 这是当前规则，不是程序异常。
 
