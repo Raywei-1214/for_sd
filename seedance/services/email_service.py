@@ -4,13 +4,7 @@ from typing import Awaitable, Callable
 
 from playwright.async_api import BrowserContext, Page
 
-from seedance.core.config import (
-    EMAIL_SCAN_SECONDS,
-    MAILBOX_FULL_RELOAD_INTERVAL,
-    MAILBOX_SOFT_REFRESH_INTERVAL,
-    TEMP_EMAIL_PROVIDERS,
-    VERIFICATION_WAIT_ATTEMPTS,
-)
+from seedance.core.config import EMAIL_SCAN_SECONDS, TEMP_EMAIL_PROVIDERS, VERIFICATION_WAIT_ATTEMPTS
 from seedance.core.logger import get_logger
 from seedance.infra.temp_mail_adapters import GENERIC_TEMP_MAIL_ADAPTER, TempMailAdapter, get_temp_mail_adapter
 
@@ -98,37 +92,6 @@ class TempEmailService:
                 await asyncio.sleep(2)
         except Exception:
             return
-
-    async def _soft_refresh_mailbox(self, page: Page, adapter: TempMailAdapter) -> bool:
-        # ================================
-        # 先尝试站内轻刷新，再决定是否整页 reload
-        # 目的: 减少验证码轮询过程中的整页重载流量
-        # 边界: 轻刷新失败时只返回 False，不把邮箱站点状态直接判死
-        # ================================
-        if adapter.name == "internxt":
-            await self._refresh_internxt_inbox(page)
-            return True
-
-        refresh_selectors = (
-            "button:has-text('Refresh')",
-            "button:has-text('Reload')",
-            "button:has-text('Check')",
-            "button:has-text('Check Mail')",
-            "[aria-label*='refresh' i]",
-            "[title*='refresh' i]",
-        )
-
-        for selector in refresh_selectors:
-            try:
-                button = page.locator(selector).first
-                if await button.count() and await button.is_visible():
-                    await button.click(timeout=5000)
-                    await asyncio.sleep(2)
-                    return True
-            except Exception:
-                continue
-
-        return False
 
     async def _open_internxt_mail_preview(self, page: Page) -> None:
         # ================================
@@ -476,6 +439,7 @@ class TempEmailService:
                 await asyncio.sleep(3)
                 try:
                     if adapter.name == "internxt":
+                        await self._refresh_internxt_inbox(email_page)
                         await self._open_internxt_mail_preview(email_page)
 
                     page_text = await email_page.evaluate("() => document.body.innerText")
@@ -491,13 +455,8 @@ class TempEmailService:
                         await self.save_screenshot(email_page, "06_code_found")
                         return verification_code
 
-                    if attempt > 0 and attempt % MAILBOX_SOFT_REFRESH_INTERVAL == 0:
-                        refreshed = await self._soft_refresh_mailbox(email_page, adapter)
-                        if refreshed:
-                            logger.info(f"[线程{self.thread_id}] 已执行站内轻刷新以获取新邮件")
-
-                    if attempt > 0 and attempt % MAILBOX_FULL_RELOAD_INTERVAL == 0:
-                        logger.info(f"[线程{self.thread_id}] 轻刷新未命中，执行一次整页重载...")
+                    if attempt > 0 and attempt % 3 == 0:
+                        logger.info(f"[线程{self.thread_id}] 强制刷新邮箱页面以获取新邮件...")
                         await email_page.reload()
                 except Exception as exc:
                     logger.debug(f"[线程{self.thread_id}] 提取验证码过程报错: {exc}")

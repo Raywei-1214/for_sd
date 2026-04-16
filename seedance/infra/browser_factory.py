@@ -1,6 +1,5 @@
-from playwright.async_api import Browser, BrowserContext, Playwright, Route
+from playwright.async_api import Browser, BrowserContext, Playwright
 
-from seedance.core.config import BLOCKED_RESOURCE_TYPES
 from seedance.core.logger import get_logger
 
 logger = get_logger()
@@ -18,22 +17,6 @@ def build_launch_args(headless: bool) -> list[str]:
         launch_args.append("--headless=new")
 
     return launch_args
-
-
-async def _configure_context_network(context: BrowserContext) -> None:
-    # ================================
-    # 省流模式优先拦截大体积静态资源
-    # 目的: 减少图片、媒体、字体重复下载带来的流量消耗
-    # 边界: 不拦截脚本、XHR、样式表，避免直接破坏注册主流程
-    # ================================
-    async def handle_route(route: Route) -> None:
-        request = route.request
-        if request.resource_type in BLOCKED_RESOURCE_TYPES:
-            await route.abort()
-            return
-        await route.continue_()
-
-    await context.route("**/*", handle_route)
 
 
 async def create_browser_context(
@@ -73,5 +56,4 @@ async def create_browser_context(
         permissions=["clipboard-read", "clipboard-write"],
         geolocation={"latitude": 37.7749, "longitude": -122.4194},
     )
-    await _configure_context_network(context)
     return browser, context
