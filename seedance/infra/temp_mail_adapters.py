@@ -142,7 +142,7 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
         name="internxt",
         ready_selectors=(
             "button:has-text('Change email')",
-            "p",
+            "button:has-text('Refresh')",
         ),
         email_value_selectors=(),
         email_text_selectors=(),

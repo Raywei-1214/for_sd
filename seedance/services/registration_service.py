@@ -605,17 +605,76 @@ class RegistrationService:
 
     async def _wait_confirmation(self, page: Page, result: RegistrationResult) -> bool:
         self._mark_step(result, RegistrationStep.WAIT_CONFIRMATION)
-        confirmation_ready = await self._wait_for_page_state(
-            page,
-            selectors=CONFIRMATION_READY_SELECTORS,
-            text_markers=CONFIRMATION_READY_TEXT_MARKERS + (CONFIRMATION_BODY_TEXT,),
-            attempts=CONFIRMATION_POLL_ATTEMPTS,
-            interval_seconds=CONFIRMATION_POLL_INTERVAL_SECONDS,
+        post_submit_state = await self._wait_for_post_submit_state(page)
+        if post_submit_state == "confirmation":
+            return True
+
+        if post_submit_state == "profile":
+            logger.info(f"[线程{self.thread_id}] 提交邮箱密码后直接进入资料页，跳过验证码输入")
+            return True
+
+        await self.save_screenshot(page, "error_wait_confirmation")
+        failure_context = await self._capture_confirmation_context(page)
+        self._fail_step(
+            result,
+            RegistrationStep.WAIT_CONFIRMATION,
+            "未进入验证码确认页面",
+            failure_context=failure_context,
         )
-        if not confirmation_ready:
-            self._fail_step(result, RegistrationStep.WAIT_CONFIRMATION, "未进入验证码确认页面")
-            return False
-        return True
+        return False
+
+    async def _wait_for_post_submit_state(self, page: Page) -> str | None:
+        for _ in range(CONFIRMATION_POLL_ATTEMPTS):
+            if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
+                return "confirmation"
+            if await self._has_text_marker(
+                page,
+                CONFIRMATION_READY_TEXT_MARKERS + (CONFIRMATION_BODY_TEXT,),
+            ):
+                return "confirmation"
+
+            if await self._has_visible_selector(page, PROFILE_READY_SELECTORS):
+                return "profile"
+            if await self._has_text_marker(page, PROFILE_READY_TEXT_MARKERS):
+                return "profile"
+
+            await asyncio.sleep(CONFIRMATION_POLL_INTERVAL_SECONDS)
+
+        return None
+
+    async def _capture_confirmation_context(self, page: Page) -> str | None:
+        base_context = await self._capture_page_context(page)
+        extra_context: list[str] = []
+
+        try:
+            if await self._has_visible_selector(page, SIGNUP_FORM_READY_SELECTORS):
+                extra_context.append("signup_form=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, CONTINUE_BUTTON_SELECTORS):
+                extra_context.append("continue_button=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
+                extra_context.append("confirmation_input=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, PROFILE_READY_SELECTORS):
+                extra_context.append("profile_form=visible")
+        except Exception:
+            pass
+
+        if base_context and extra_context:
+            return f"{base_context} | {' | '.join(extra_context)}"
+        if extra_context:
+            return " | ".join(extra_context)
+        return base_context
 
     async def _fill_verification_code(
         self,
@@ -779,8 +838,10 @@ class RegistrationService:
                 return result
             if not await self._wait_confirmation(main_page, result):
                 return result
-            if not await self._fill_verification_code(main_page, email_page, result):
-                return result
+            profile_already_ready = await self._has_visible_selector(main_page, PROFILE_READY_SELECTORS) or await self._has_text_marker(main_page, PROFILE_READY_TEXT_MARKERS)
+            if not profile_already_ready:
+                if not await self._fill_verification_code(main_page, email_page, result):
+                    return result
             profile_ready, birth_date = await self._complete_profile(main_page, result)
             if not profile_ready:
                 result.email = self.temp_email_service.temp_email

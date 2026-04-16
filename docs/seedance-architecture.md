@@ -104,6 +104,10 @@
 - 当首页稳定元素暂时未出现时，`open_home` 会额外用正文文本标记 `Explore / Create Assets` 作为二级 ready 信号。
 - 注册表单页：等待邮箱输入框与密码输入框出现。
 - 验证码页：优先等待验证码输入相关元素，文本 `confirm / verification code / 验证码` 作为兜底。
+- `wait_confirmation` 现在会显式区分两种后续状态：
+  - 进入验证码页
+  - 直接进入资料页（跳过验证码输入）
+- `wait_confirmation` 失败时会额外记录页面上下文，并标记当时是否仍停留在注册表单、Continue 按钮是否仍可见、资料页/验证码页元素是否已出现。
 - 资料页：等待 `Year / Month / Day` 相关表单元素出现。
 - 资料页：等待 `Year / Month / Day` 相关稳定元素，文本 `year / month / day / birthday` 作为兜底，并在失败时采集页面上下文。
 - 成功页：要求同时避开 `login/signup` URL，并等待积分区、生成按钮、菜单区等稳定元素之一出现。
@@ -131,9 +135,10 @@
   - 当前主要问题是风控，不是单纯 selector 失效
 - `internxt` 当前已补专用提取逻辑：
   - 页面邮箱是前端渲染后的纯文本节点
-  - 先等待 `Change email` 按钮出现
+  - 先等待真实邮箱、`Change email` 或 `Refresh` 按钮出现
   - 若页面停在 `Generating random email...`，会继续等待邮箱生成，并主动点击 `Refresh` 拉起前端刷新
   - 验证码阶段会先刷新收件箱，再尝试点开 `Dreamina / CapCut / verification` 相关邮件正文
+  - Internxt 的验证码等待窗口会比普通站点更长，避免把慢收件箱过早判成失败
   - 最后再从短文本节点和正文文本中提取真实邮箱与验证码
 - `guerrillamail` 当前已补专用提取逻辑：
   - 优先读取 `#email-widget`

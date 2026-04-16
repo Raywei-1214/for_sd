@@ -94,13 +94,25 @@ CONFIRMATION_READY_SELECTORS = (
     "input[autocomplete='one-time-code']",
     "input[inputmode='numeric']",
     "input[inputmode='tel']",
+    "input[placeholder*='code' i]",
+    "input[aria-label*='code' i]",
+    "input[name*='code' i]",
+    "input[maxlength='6'][inputmode='numeric']",
     "div[class*='verification'] input",
     "div[class*='code'] input",
+    "div[class*='otp'] input",
+    "[data-testid*='verification'] input",
 )
 CONFIRMATION_READY_TEXT_MARKERS = (
     "confirm",
     "verification code",
     "验证码",
+    "enter code",
+    "one-time code",
+    "6-digit",
+    "check your inbox",
+    "resend code",
+    "sent to",
 )
 
 CONTINUE_BUTTON_SELECTORS = (

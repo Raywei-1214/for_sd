@@ -142,7 +142,35 @@ class TempEmailService:
         page: Page,
         adapter: TempMailAdapter,
     ) -> bool:
+        if adapter.name == "internxt":
+            return await self._wait_for_internxt_ready(page, adapter)
+
         for _ in range(EMAIL_SCAN_SECONDS):
+            for selector in adapter.ready_selectors:
+                try:
+                    node = await page.query_selector(selector)
+                    if node and await node.is_visible():
+                        return True
+                except Exception:
+                    continue
+            await asyncio.sleep(1)
+        return False
+
+    async def _wait_for_internxt_ready(
+        self,
+        page: Page,
+        adapter: TempMailAdapter,
+    ) -> bool:
+        # ================================
+        # Internxt 不能再用“营销页里有个 p 标签”判 ready
+        # 目的: 只有真实邮箱或邮箱操作按钮出现时，才认为页面已进入收件箱态
+        # 边界: 仅对 internxt 生效，不改变其他站点就绪策略
+        # ================================
+        for _ in range(EMAIL_SCAN_SECONDS):
+            extracted_email = await self._extract_internxt_email(page)
+            if extracted_email:
+                return True
+
             for selector in adapter.ready_selectors:
                 try:
                     node = await page.query_selector(selector)
@@ -406,7 +434,8 @@ class TempEmailService:
         try:
             logger.info(f"[线程{self.thread_id}] 正在收件箱等待验证码 (最多等待60秒)...")
             adapter = get_temp_mail_adapter(self.provider_name or "")
-            for attempt in range(VERIFICATION_WAIT_ATTEMPTS):
+            verification_attempts = VERIFICATION_WAIT_ATTEMPTS + 10 if adapter.name == "internxt" else VERIFICATION_WAIT_ATTEMPTS
+            for attempt in range(verification_attempts):
                 await asyncio.sleep(3)
                 try:
                     if adapter.name == "internxt":
