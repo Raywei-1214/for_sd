@@ -4,7 +4,13 @@ from typing import Awaitable, Callable
 
 from playwright.async_api import BrowserContext, Page
 
-from seedance.core.config import EMAIL_SCAN_SECONDS, TEMP_EMAIL_PROVIDERS, VERIFICATION_WAIT_ATTEMPTS
+from seedance.core.config import (
+    EMAIL_HARD_RELOAD_INTERVAL,
+    EMAIL_LIGHT_REFRESH_INTERVAL,
+    EMAIL_SCAN_SECONDS,
+    TEMP_EMAIL_PROVIDERS,
+    VERIFICATION_WAIT_ATTEMPTS,
+)
 from seedance.core.logger import get_logger
 from seedance.infra.temp_mail_adapters import GENERIC_TEMP_MAIL_ADAPTER, TempMailAdapter, get_temp_mail_adapter
 
@@ -92,6 +98,41 @@ class TempEmailService:
                 await asyncio.sleep(2)
         except Exception:
             return
+
+    async def _light_refresh_email_page(self, page: Page, adapter: TempMailAdapter) -> bool:
+        # ================================
+        # 验证码等待阶段优先走站点内轻刷新
+        # 目的: 用站内按钮/Ajax 刷新代替整页 reload，减少流量和页面重建抖动
+        # 边界: 只要 provider 有专属刷新链路就优先命中；没有再尝试通用刷新控件
+        # ================================
+        if adapter.name == "internxt":
+            await self._refresh_internxt_inbox(page)
+            return True
+
+        if adapter.name == "10minutemail.net":
+            await self._refresh_10minutemail_inbox(page)
+            return True
+
+        refresh_selectors = (
+            "button:has-text('Refresh')",
+            "a:has-text('Refresh')",
+            "button:has-text('Reload')",
+            "a:has-text('Reload')",
+            "button[aria-label*='refresh' i]",
+            "a[aria-label*='refresh' i]",
+            "[class*='refresh']",
+        )
+        for selector in refresh_selectors:
+            try:
+                refresh_node = page.locator(selector).first
+                if await refresh_node.count() and await refresh_node.is_visible():
+                    await refresh_node.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return True
+            except Exception:
+                continue
+
+        return False
 
     async def _refresh_10minutemail_inbox(self, page: Page) -> None:
         # ================================
@@ -560,14 +601,13 @@ class TempEmailService:
             for attempt in range(verification_attempts):
                 await asyncio.sleep(3)
                 try:
+                    if attempt == 0 or attempt % EMAIL_LIGHT_REFRESH_INTERVAL == 0:
+                        await self._light_refresh_email_page(email_page, adapter)
+
                     if adapter.name == "internxt":
-                        await self._refresh_internxt_inbox(email_page)
                         await self._open_internxt_mail_preview(email_page)
-                    elif adapter.name == "10minutemail.net":
-                        if attempt == 0 or attempt % 2 == 0:
-                            await self._refresh_10minutemail_inbox(email_page)
-                        if attempt >= 1:
-                            await self._open_10minutemail_mail_preview(email_page)
+                    elif adapter.name == "10minutemail.net" and attempt >= 1:
+                        await self._open_10minutemail_mail_preview(email_page)
 
                     page_text = await email_page.evaluate("() => document.body.innerText")
                     verification_code = self._extract_code_from_text(page_text, adapter)
@@ -582,11 +622,8 @@ class TempEmailService:
                         await self.save_screenshot(email_page, "06_code_found")
                         return verification_code
 
-                    if adapter.name == "10minutemail.net" and attempt > 0 and attempt % 6 == 0:
-                        logger.info(f"[线程{self.thread_id}] 10minutemail.net 整页刷新收件箱...")
-                        await email_page.reload(wait_until="domcontentloaded")
-                    elif attempt > 0 and attempt % 3 == 0:
-                        logger.info(f"[线程{self.thread_id}] 强制刷新邮箱页面以获取新邮件...")
+                    if attempt > 0 and attempt % EMAIL_HARD_RELOAD_INTERVAL == 0:
+                        logger.info(f"[线程{self.thread_id}] 轻刷新未命中，执行整页刷新以获取新邮件...")
                         await email_page.reload(wait_until="domcontentloaded")
                 except Exception as exc:
                     logger.debug(f"[线程{self.thread_id}] 提取验证码过程报错: {exc}")

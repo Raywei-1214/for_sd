@@ -156,6 +156,9 @@
   - 验证码阶段优先触发站内 `updatemailbox()` 轻刷新
   - 再尝试点开 `Dreamina / CapCut / verification / code` 相关邮件预览
   - 只有连续多轮仍无验证码时，才做整页 `reload()`
+- 验证码等待阶段当前统一改为“站点内轻刷新优先，整页 reload 降频”：
+  - 有专属刷新能力的站点优先走站内刷新
+  - 只有轻刷新连续多轮仍未命中时，才执行整页刷新
 - `tempmail.lol` 当前已补真实邮箱就绪等待：
   - 页面打开后若仍显示 `Loading...`
   - 会先等待邮箱真实生成，再进入适配器提取流程
@@ -179,6 +182,10 @@
   - `auto`：自动优先本地 Chrome
   - `chrome`：强制本地 Chrome
   - `chromium`：强制 Playwright 内置 Chromium
+- 浏览器上下文当前已接入资源拦截：
+  - 统一拦截 `image / font / media / ping`
+  - 不拦 `script / xhr / fetch / stylesheet`
+  - 目的: 先压掉高流量静态资源，不直接碰前端核心脚本和接口请求
 - 去水印运行结束后额外落盘一份报告：
   - `run_reports/watermark_run_<timestamp>.json`
 - `run_report.summary` 当前会输出：

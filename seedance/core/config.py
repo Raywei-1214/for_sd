@@ -28,6 +28,8 @@ MIN_WORKERS = 1
 MAX_WORKERS = 5
 EMAIL_SCAN_SECONDS = 30
 VERIFICATION_WAIT_ATTEMPTS = 20
+EMAIL_LIGHT_REFRESH_INTERVAL = 2
+EMAIL_HARD_RELOAD_INTERVAL = 6
 
 STEP_RETRY_COUNT = 5
 PAGE_READY_WAIT_SECONDS = 3
@@ -187,6 +189,18 @@ SUCCESS_READY_SELECTORS = CREDIT_SELECTORS + PROBE_GENERATE_BUTTON_SELECTORS + C
 SUCCESS_READY_TEXT_MARKERS = (
     "generate",
     "credit",
+)
+
+# ================================
+# 省流相关常量
+# 目的: 统一收口当前轮次的资源拦截范围，方便后续单独回滚
+# 边界: 只拦截图片/字体/媒体/ping，不碰脚本和接口请求
+# ================================
+BLOCKED_RESOURCE_TYPES = (
+    "image",
+    "font",
+    "media",
+    "ping",
 )
 
 # ================================

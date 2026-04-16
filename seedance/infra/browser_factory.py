@@ -1,5 +1,6 @@
-from playwright.async_api import Browser, BrowserContext, Playwright
+from playwright.async_api import Browser, BrowserContext, Playwright, Route
 
+from seedance.core.config import BLOCKED_RESOURCE_TYPES
 from seedance.core.logger import get_logger
 
 logger = get_logger()
@@ -56,4 +57,17 @@ async def create_browser_context(
         permissions=["clipboard-read", "clipboard-write"],
         geolocation={"latitude": 37.7749, "longitude": -122.4194},
     )
+    await context.route("**/*", _handle_resource_route)
     return browser, context
+
+
+async def _handle_resource_route(route: Route) -> None:
+    # ================================
+    # 当前轮次只拦截高流量但低注册价值的静态资源
+    # 目的: 在不动脚本和接口请求的前提下，先压掉图片/字体/媒体/ping 流量
+    # 边界: 不拦 script/xhr/fetch/stylesheet，避免再次把主流程打坏
+    # ================================
+    if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
+        await route.abort()
+        return
+    await route.continue_()
