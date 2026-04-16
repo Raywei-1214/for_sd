@@ -1,9 +1,17 @@
+from urllib.parse import urlparse
+
 from playwright.async_api import Browser, BrowserContext, Playwright, Route
 
 from seedance.core.config import BLOCKED_RESOURCE_TYPES
 from seedance.core.logger import get_logger
 
 logger = get_logger()
+ALLOWED_DREAMINA_HOSTS = (
+    "dreamina.capcut.com",
+    "capcut.com",
+    "byteoversea.com",
+    "bytedance.com",
+)
 
 
 def build_launch_args(headless: bool) -> list[str]:
@@ -63,11 +71,28 @@ async def create_browser_context(
 
 async def _handle_resource_route(route: Route) -> None:
     # ================================
-    # 当前轮次只拦截高流量但低注册价值的静态资源
-    # 目的: 在不动脚本和接口请求的前提下，先压掉图片/字体/媒体/ping 流量
-    # 边界: 不拦 script/xhr/fetch/stylesheet，避免再次把主流程打坏
+    # 当前轮次只对临时邮箱站点拦截高流量静态资源
+    # 目的: Dreamina 主站及依赖全部放行，避免再次打断验证码/资料页渲染
+    # 边界: 只拦 image/font/media/ping，且 document 导航请求永远放行
     # ================================
-    if route.request.resource_type in BLOCKED_RESOURCE_TYPES:
+    request = route.request
+    if request.resource_type == "document":
+        await route.continue_()
+        return
+
+    hostname = (urlparse(request.url).hostname or "").lower()
+    if _is_allowed_dreamina_host(hostname):
+        await route.continue_()
+        return
+
+    if request.resource_type in BLOCKED_RESOURCE_TYPES:
         await route.abort()
         return
     await route.continue_()
+
+
+def _is_allowed_dreamina_host(hostname: str) -> bool:
+    return any(
+        hostname == allowed_host or hostname.endswith(f".{allowed_host}")
+        for allowed_host in ALLOWED_DREAMINA_HOSTS
+    )

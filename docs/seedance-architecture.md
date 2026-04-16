@@ -183,9 +183,10 @@
   - `chrome`：强制本地 Chrome
   - `chromium`：强制 Playwright 内置 Chromium
 - 浏览器上下文当前已接入资源拦截：
-  - 统一拦截 `image / font / media / ping`
+  - Dreamina 主站及其依赖域名默认放行
+  - 当前只对临时邮箱站点拦截 `image / font / media / ping`
   - 不拦 `script / xhr / fetch / stylesheet`
-  - 目的: 先压掉高流量静态资源，不直接碰前端核心脚本和接口请求
+  - 目的: 优先压掉邮箱站点静态资源流量，不再误伤 Dreamina 注册主流程
 - 去水印运行结束后额外落盘一份报告：
   - `run_reports/watermark_run_<timestamp>.json`
 - `run_report.summary` 当前会输出：

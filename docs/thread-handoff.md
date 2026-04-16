@@ -47,7 +47,8 @@
   - 只有连续多轮无结果才整页 `reload()`
 - 验证码等待当前已统一改为“站点内轻刷新优先，整页 reload 降频”
 - 浏览器上下文当前已启用基础资源拦截：
-  - 拦截 `image / font / media / ping`
+  - Dreamina 主站及依赖域名全部放行
+  - 临时邮箱站点拦截 `image / font / media / ping`
   - 保留 `script / xhr / fetch / stylesheet`
 - `tempmail.lol` 已补 `Loading...` 等待逻辑：会先等真实邮箱生成，再进入提取
 - `fill_profile` 已升级为“稳定元素 + 文本标记 + 失败上下文”三层断言，不再只靠单一 `Year` 输入框
