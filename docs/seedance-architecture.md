@@ -151,6 +151,11 @@
 - `10minutemail.net` 当前已补超时错误页识别：
   - 若页面落到 `chrome-error://` 或出现 `ERR_CONNECTION_TIMED_OUT`
   - 会直接判定为加载失败并重试，而不是误当成“页面已打开”
+- `10minutemail.net` 当前已补专用验证码链路：
+  - 邮箱地址优先读取 `#fe_text` 与复制按钮 `data-clipboard-text`
+  - 验证码阶段优先触发站内 `updatemailbox()` 轻刷新
+  - 再尝试点开 `Dreamina / CapCut / verification / code` 相关邮件预览
+  - 只有连续多轮仍无验证码时，才做整页 `reload()`
 - `tempmail.lol` 当前已补真实邮箱就绪等待：
   - 页面打开后若仍显示 `Loading...`
   - 会先等待邮箱真实生成，再进入适配器提取流程
@@ -208,6 +213,12 @@
 - 对于 `主页加载失败` 与 `临时邮箱获取失败`，报告会额外记录：
   - `failure_context`
   - 内容包含当时的 `url / title / body 片段`
+- 对于 `验证码获取失败`，报告现在也会记录邮箱页上下文：
+  - `url / title / body 片段`
+  - 若是 `10minutemail.net`，还会额外标记：
+    - `mailbox_table=visible`
+    - `dreamina_mail=visible`
+    - `mail_preview=open`
 - `wait_confirmation` 当前已改为强制页面采样：
   - 即使未命中额外状态标记，也会至少写入 `context_capture_empty`，避免报告里继续出现完全空白上下文
 

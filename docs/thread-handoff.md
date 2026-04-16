@@ -41,6 +41,10 @@
 - `internxt` 的 ready 判定已收紧为“真实邮箱 / Change email / Refresh”，不再把营销页段落误当成收件箱 ready；验证码等待窗口也已拉长
 - `mailpoof` 当前真实站点在 `create/random` 路径返回空白页，因此仍不建议放回随机池
 - `10minutemail.net` 已补超时错误页识别：若落到 `chrome-error://` 或出现 `ERR_CONNECTION_TIMED_OUT`，会判定为加载失败并重试
+- `10minutemail.net` 已补专用验证码链路：
+  - 验证码等待优先走站内 `updatemailbox()` 轻刷新
+  - 会优先点开 `Dreamina / CapCut / verification / code` 相关邮件预览
+  - 只有连续多轮无结果才整页 `reload()`
 - `tempmail.lol` 已补 `Loading...` 等待逻辑：会先等真实邮箱生成，再进入提取
 - `fill_profile` 已升级为“稳定元素 + 文本标记 + 失败上下文”三层断言，不再只靠单一 `Year` 输入框
 - `run_report.summary` 已补齐 `available_count / available_rate / duration_seconds`
@@ -50,6 +54,8 @@
   - `run_report.summary` 会同步汇总整批请求量与累计资源量
 - GUI `运行概览` 当前已新增 `请求量/资源量统计`，用于和 VPS 面板做流量对照
 - `wait_confirmation` 当前已补强制页面采样兜底：至少会输出 `context_capture_empty`，不再出现完全无字段的空白上下文
+- `fill_verification_code` 当前也会记录邮箱页失败上下文：
+  - 便于区分“收件箱没刷新出邮件”与“已打开邮件正文但没有验证码”
 - 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`
 - 推送路线与 `CC_AutoCut` 保持一致，统一复用 GitHub SSH 凭据，不走 `https`

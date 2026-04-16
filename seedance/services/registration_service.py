@@ -726,7 +726,18 @@ class RegistrationService:
         self._mark_step(result, RegistrationStep.FILL_VERIFICATION_CODE)
         verification_code = await self.temp_email_service.wait_verification_code(email_page)
         if not verification_code:
-            self._fail_step(result, RegistrationStep.FILL_VERIFICATION_CODE, "验证码获取失败")
+            # ================================
+            # 验证码失败不仅要看主页面，也要看邮箱页当时停在哪
+            # 目的: 下次能区分“邮件没刷新出来”还是“已打开邮件但正文无验证码”
+            # 边界: 仅做页面采样，不引入新的外网请求
+            # ================================
+            failure_context = await self.temp_email_service.capture_verification_context(email_page)
+            self._fail_step(
+                result,
+                RegistrationStep.FILL_VERIFICATION_CODE,
+                "验证码获取失败",
+                failure_context=failure_context,
+            )
             return False
         await page.keyboard.type(verification_code, delay=100)
         return True

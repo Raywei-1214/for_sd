@@ -93,6 +93,71 @@ class TempEmailService:
         except Exception:
             return
 
+    async def _refresh_10minutemail_inbox(self, page: Page) -> None:
+        # ================================
+        # 10minutemail.net 自带 mailbox.ajax.php 刷新逻辑
+        # 目的: 优先触发站内轻刷新，而不是频繁整页 reload 烧流量
+        # 边界: 若站内刷新函数不存在，再退回到页面内刷新链接
+        # ================================
+        try:
+            refreshed = await page.evaluate(
+                """
+                () => {
+                    if (typeof updatemailbox === 'function') {
+                        updatemailbox();
+                        return true;
+                    }
+                    return false;
+                }
+                """
+            )
+            if refreshed:
+                await asyncio.sleep(2)
+                return
+        except Exception:
+            pass
+
+        refresh_selectors = (
+            "a:has-text('Refresh this page.')",
+            "a:has-text('Refresh this page')",
+            "a[href='/?lang=en']",
+        )
+        for selector in refresh_selectors:
+            try:
+                refresh_link = page.locator(selector).first
+                if await refresh_link.count() and await refresh_link.is_visible():
+                    await refresh_link.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
+    async def _open_10minutemail_mail_preview(self, page: Page) -> None:
+        # ================================
+        # 10minutemail.net 验证码邮件通常在 InBox 表格里
+        # 目的: 优先点开 Dreamina / CapCut / verification 相关邮件，避免正文一直停留在欢迎邮件
+        # 边界: 仅做轻量尝试，不把预览失败当成硬错误
+        # ================================
+        preview_selectors = (
+            "a.row-link:has-text('Dreamina')",
+            "a.row-link:has-text('CapCut')",
+            "a.row-link:has-text('verification')",
+            "a.row-link:has-text('Verification')",
+            "a.row-link:has-text('confirm')",
+            "a.row-link:has-text('Confirm')",
+            "a.row-link:has-text('code')",
+            "a.row-link:has-text('Code')",
+        )
+        for selector in preview_selectors:
+            try:
+                preview = page.locator(selector).first
+                if await preview.count() and await preview.is_visible():
+                    await preview.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
     async def _open_internxt_mail_preview(self, page: Page) -> None:
         # ================================
         # Internxt 邮件内容可能需要先点进列表项才会展开正文
@@ -231,6 +296,59 @@ class TempEmailService:
                 continue
 
         return None
+
+    async def capture_verification_context(self, page: Page | None) -> str | None:
+        if page is None:
+            return None
+
+        try:
+            current_url = page.url or ""
+        except Exception:
+            current_url = ""
+
+        try:
+            title = await page.title()
+        except Exception:
+            title = ""
+
+        try:
+            body_text = await page.evaluate("() => document.body?.innerText || ''")
+            body_preview = re.sub(r"\s+", " ", body_text).strip()[:160]
+        except Exception:
+            body_preview = ""
+
+        context_parts: list[str] = []
+        if current_url:
+            context_parts.append(f"url={current_url}")
+        if title:
+            context_parts.append(f"title={title}")
+        if body_preview:
+            context_parts.append(f"body={body_preview}")
+
+        if self.provider_name == "10minutemail.net":
+            # ================================
+            # 10minutemail.net 的验证码失败需要区分“还在邮箱列表”还是“已打开邮件正文”
+            # 目的: 下次报告能直接判断是收件箱没刷新出来，还是点开邮件后正文不含验证码
+            # 边界: 只做只读探测，不触发额外网络请求
+            # ================================
+            try:
+                if await page.locator("#maillist").count():
+                    context_parts.append("mailbox_table=visible")
+            except Exception:
+                pass
+
+            try:
+                if await page.locator("a.row-link:has-text('Dreamina')").count():
+                    context_parts.append("dreamina_mail=visible")
+            except Exception:
+                pass
+
+            if "readmail.html" in current_url:
+                context_parts.append("mail_preview=open")
+
+        if not context_parts:
+            return None
+        return " | ".join(context_parts)
 
     async def _extract_guerrillamail_email(self, page: Page) -> str | None:
         display_selectors = (
@@ -434,13 +552,22 @@ class TempEmailService:
         try:
             logger.info(f"[线程{self.thread_id}] 正在收件箱等待验证码 (最多等待60秒)...")
             adapter = get_temp_mail_adapter(self.provider_name or "")
-            verification_attempts = VERIFICATION_WAIT_ATTEMPTS + 10 if adapter.name == "internxt" else VERIFICATION_WAIT_ATTEMPTS
+            verification_attempts = VERIFICATION_WAIT_ATTEMPTS
+            if adapter.name == "internxt":
+                verification_attempts += 10
+            if adapter.name == "10minutemail.net":
+                verification_attempts += 4
             for attempt in range(verification_attempts):
                 await asyncio.sleep(3)
                 try:
                     if adapter.name == "internxt":
                         await self._refresh_internxt_inbox(email_page)
                         await self._open_internxt_mail_preview(email_page)
+                    elif adapter.name == "10minutemail.net":
+                        if attempt == 0 or attempt % 2 == 0:
+                            await self._refresh_10minutemail_inbox(email_page)
+                        if attempt >= 1:
+                            await self._open_10minutemail_mail_preview(email_page)
 
                     page_text = await email_page.evaluate("() => document.body.innerText")
                     verification_code = self._extract_code_from_text(page_text, adapter)
@@ -455,9 +582,12 @@ class TempEmailService:
                         await self.save_screenshot(email_page, "06_code_found")
                         return verification_code
 
-                    if attempt > 0 and attempt % 3 == 0:
+                    if adapter.name == "10minutemail.net" and attempt > 0 and attempt % 6 == 0:
+                        logger.info(f"[线程{self.thread_id}] 10minutemail.net 整页刷新收件箱...")
+                        await email_page.reload(wait_until="domcontentloaded")
+                    elif attempt > 0 and attempt % 3 == 0:
                         logger.info(f"[线程{self.thread_id}] 强制刷新邮箱页面以获取新邮件...")
-                        await email_page.reload()
+                        await email_page.reload(wait_until="domcontentloaded")
                 except Exception as exc:
                     logger.debug(f"[线程{self.thread_id}] 提取验证码过程报错: {exc}")
 

@@ -86,26 +86,29 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
     "10minutemail.net": TempMailAdapter(
         name="10minutemail.net",
         ready_selectors=(
-            "#mail_address",
-            "#address",
-            "input[value*='@']",
+            "#fe_text",
+            "#copy-button[data-clipboard-text*='@']",
+            "#maillist",
         ),
         email_value_selectors=(
-            "#mail_address",
+            "#fe_text",
             "input[value*='@']",
         ),
         email_text_selectors=(
-            "#mail_address",
+            "#fe_text",
             "#address",
             "#address-value",
         ),
         email_attribute_selectors=(
             ("[data-clipboard-text]", "data-clipboard-text"),
+            ("#copy-button[data-clipboard-text*='@']", "data-clipboard-text"),
         ),
         verification_text_markers=(
             "verification code",
             "code is",
             "dreamina",
+            "capcut",
+            "confirm",
         ),
     ),
     "tempmail.lol": TempMailAdapter(
