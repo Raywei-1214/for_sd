@@ -7,6 +7,7 @@ from datetime import datetime
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_MAIL_HEALTH_FILE, TEMP_EMAIL_PROVIDERS
 from seedance.core.logger import get_logger
 from seedance.core.models import BatchProgress, BatchSummary, RegistrationResult, RuntimeOptions
+from seedance.core.notion_rules import classify_account_quality
 from seedance.infra.account_store import AccountStore
 from seedance.infra.browser_detector import find_chrome_browser, load_browser_config, save_browser_config
 from seedance.infra.report_writer import RunReportWriter, build_failure_reason
@@ -472,6 +473,12 @@ def main(
     available_count = sum(
         1 for result in results if result.success and account_store.is_notion_eligible(result)
     )
+    account_quality_counts: dict[str, int] = {}
+    for result in results:
+        quality, reason = classify_account_quality(result)
+        result.account_quality = quality
+        result.account_quality_reason = reason
+        account_quality_counts[quality] = account_quality_counts.get(quality, 0) + 1
     network_request_count = sum(result.request_count for result in results)
     network_response_count = sum(result.response_count for result in results)
     network_failed_request_count = sum(result.failed_request_count for result in results)
@@ -529,5 +536,6 @@ def main(
         network_failed_request_count=network_failed_request_count,
         network_transferred_bytes=network_transferred_bytes,
         network_request_type_counts=network_request_type_counts,
+        account_quality_counts=account_quality_counts,
         stop_requested=stop_requested,
     )

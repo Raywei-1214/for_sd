@@ -5,7 +5,7 @@ from pathlib import Path
 
 from seedance.core.logger import get_logger
 from seedance.core.models import RegistrationResult
-from seedance.core.notion_rules import evaluate_notion_sync_eligibility
+from seedance.core.notion_rules import classify_account_quality, evaluate_notion_sync_eligibility
 
 logger = get_logger()
 
@@ -25,7 +25,15 @@ class RunReportWriter:
         eligible, _ = evaluate_notion_sync_eligibility(result)
         return eligible
 
+    def _fill_account_quality(self, result: RegistrationResult) -> None:
+        quality, reason = classify_account_quality(result)
+        result.account_quality = quality
+        result.account_quality_reason = reason
+
     def _build_summary(self, results: list[RegistrationResult], script_total_seconds: float) -> dict:
+        for result in results:
+            self._fill_account_quality(result)
+
         success_count = sum(1 for result in results if result.success)
         failed_results = [result for result in results if not result.success]
         available_count = sum(
@@ -47,6 +55,7 @@ class RunReportWriter:
         network_request_type_counter = Counter()
         for result in results:
             network_request_type_counter.update(result.request_type_counts or {})
+        account_quality_counter = Counter(result.account_quality or "unknown" for result in results)
         failure_counter = Counter(
             build_failure_reason(result)
             for result in failed_results
@@ -73,6 +82,7 @@ class RunReportWriter:
             "network_transferred_bytes": network_transferred_bytes,
             "network_transferred_megabytes": round(network_transferred_bytes / (1024 * 1024), 2),
             "network_request_type_counts": dict(network_request_type_counter),
+            "account_quality_counts": dict(account_quality_counter),
             "failure_breakdown": [
                 {"reason": reason, "count": count}
                 for reason, count in failure_counter.most_common()
@@ -96,6 +106,8 @@ class RunReportWriter:
             "finished_at": result.finished_at,
             "error_message": result.error_message,
             "failure_context": getattr(result, "failure_context", None),
+            "account_quality": result.account_quality,
+            "account_quality_reason": result.account_quality_reason,
             "notion_ok": result.notion_ok,
             "notion_skipped": result.notion_skipped,
             "notion_error": result.notion_error,
@@ -205,6 +217,8 @@ class RunReportWriter:
                     "finished_at",
                     "error_message",
                     "failure_context",
+                    "account_quality",
+                    "account_quality_reason",
                     "notion_ok",
                     "notion_skipped",
                     "notion_error",

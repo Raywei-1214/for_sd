@@ -54,6 +54,8 @@ class RegistrationResult:
     finished_at: Optional[str] = None
     error_message: Optional[str] = None
     failure_context: Optional[str] = None
+    account_quality: Optional[str] = None
+    account_quality_reason: Optional[str] = None
     notion_ok: bool = False
     notion_skipped: bool = False
     notion_error: Optional[str] = None
@@ -107,6 +109,7 @@ class BatchSummary:
     network_failed_request_count: int
     network_transferred_bytes: int
     network_request_type_counts: dict[str, int]
+    account_quality_counts: dict[str, int]
     stop_requested: bool = False
 
 

@@ -58,6 +58,16 @@
   - 若页面还停留在验证码页，会继续等待过渡，不再过早失败
   - 失败时会补 `signup_form / continue_button / confirmation_input / profile_form / year_input / month_select / day_select` 可见性标记
 - `run_report.summary` 已补齐 `available_count / available_rate / duration_seconds`
+- 账号质量分层统计已接入运行报告与 GUI：
+  - `usable`
+  - `credits_70`
+  - `missing_sessionid`
+  - `missing_suffix_zero`
+  - `missing_credits`
+  - `china_blocked`
+  - `other_credits`
+  - `task_failed`
+- 当前 `usable` 与 Notion 准入口径完全一致：0积分 + 有 `sessionid` + 非 China + 备份行以 `----0` 结尾
 - `32ee293`（省流拦截 + 收紧重试）已按用户要求回退，避免继续污染对照组
 - 注册任务当前已补轻量网络统计：
   - 每条结果都会记录 `request_count / response_count / failed_request_count / transferred_bytes / request_type_counts`

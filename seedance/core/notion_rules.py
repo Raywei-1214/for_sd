@@ -76,3 +76,41 @@ def evaluate_notion_sync_eligibility(
         return False, f"备份行未以 {NOTION_SYNC_SUFFIX} 结尾，末段值={seedance_value}"
 
     return True, None
+
+
+def classify_account_quality(
+    result: RegistrationResult,
+    backup_line: str | None = None,
+) -> tuple[str, str]:
+    # ================================
+    # 账号质量分层统一收口在这里
+    # 目的: 让报表、GUI、保存逻辑对“0积分异常形态”使用同一套口径
+    # 边界: 这里只做分类，不改现有 Notion 准入规则
+    # ================================
+    if not result.success:
+        return "task_failed", result.error_message or "任务失败"
+
+    country_text = (result.country or "").strip()
+    credits_value = parse_credits_value(result.credits)
+    effective_backup_line = backup_line or build_backup_line_from_result(result)
+    seedance_value = get_backup_line_seedance_value(effective_backup_line) or "<empty>"
+
+    if credits_value == 70:
+        return "credits_70", "70积分，正常但不可用"
+
+    if credits_value is None:
+        return "missing_credits", "积分缺失或无法识别"
+
+    if credits_value != 0:
+        return "other_credits", f"积分异常: {result.credits}"
+
+    if not result.sessionid:
+        return "missing_sessionid", "0积分但缺少 sessionid"
+
+    if "china" in country_text.lower():
+        return "china_blocked", f"0积分但国家命中 China: {country_text}"
+
+    if not backup_line_has_notion_sync_suffix(effective_backup_line):
+        return "missing_suffix_zero", f"0积分但尾部不是 {NOTION_SYNC_SUFFIX}，末段值={seedance_value}"
+
+    return "usable", "0积分且 sessionid / 国家 / 尾部均符合要求"

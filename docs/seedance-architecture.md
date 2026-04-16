@@ -223,6 +223,8 @@
   - `notion_skipped`
   - `notion_error`
   - `notion_skip_reason`
+  - `account_quality`
+  - `account_quality_reason`
   - `backup_ok`
   - `backup_error`
   - `request_count`
@@ -257,6 +259,15 @@
   - `国家` 不包含 `China`
   - 本地备份行必须以 `----0` 结尾
   - 上面这个结尾字段对应 `seedance_value = 0`
+- 运行报告与 GUI 会额外按账号质量分层统计：
+  - `usable`：0积分 + 有 `sessionid` + 非 China + 备份行以 `----0` 结尾
+  - `credits_70`：70积分，正常但不可用
+  - `missing_sessionid`：0积分但缺少 `sessionid`
+  - `missing_suffix_zero`：0积分但尾部不是 `----0`
+  - `missing_credits`：积分缺失或无法识别
+  - `china_blocked`：0积分但国家命中 China
+  - `other_credits`：其他积分异常
+  - `task_failed`：任务本身失败，未形成成功账号
 - 失败任务不再写入 Notion。
 - Notion 表结构强制收敛为 6 列：
   - `账号`

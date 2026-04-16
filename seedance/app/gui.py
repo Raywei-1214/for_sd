@@ -813,12 +813,14 @@ class SeedanceMainWindow(QMainWindow):
         self.run_status_value.setObjectName("ValueHero")
         self.report_path_value = self._create_note_label("尚未生成运行报告")
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
+        self.quality_stats_value = self._create_note_label("尚未生成账号质量统计")
         self.network_stats_value = self._create_note_label("尚未生成网络统计")
 
         detail_layout.addLayout(self._create_value_block("当前进度", self.progress_bar))
         detail_layout.addWidget(self.progress_detail_value)
         detail_layout.addLayout(self._create_value_block("运行报告", self.report_path_value))
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
+        detail_layout.addLayout(self._create_value_block("账号质量统计", self.quality_stats_value))
         detail_layout.addLayout(self._create_value_block("请求量/资源量统计", self.network_stats_value))
         return card
 
@@ -936,6 +938,9 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"0 / {DEFAULT_TOTAL_COUNT}")
         self.progress_detail_value.setText(f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}")
+        self.report_path_value.setText("尚未生成运行报告")
+        self.last_result_value.setText("最近一次运行结果将在这里显示")
+        self.quality_stats_value.setText("尚未生成账号质量统计")
         self.network_stats_value.setText("尚未生成网络统计")
         self._set_button_locked_state(self.start_button, False)
         self._set_button_locked_state(self.stop_button, True)
@@ -1205,6 +1210,7 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_detail_value.setText(f"已完成 0 / {run_config.total_count}，运行中 0，待开始 {run_config.total_count}")
         self.report_path_value.setText("运行中，报告生成后会显示在这里")
         self.last_result_value.setText("任务已启动，等待批量结果...")
+        self.quality_stats_value.setText("运行中，账号质量统计将在批次结束后汇总")
         self.network_stats_value.setText("运行中，网络统计将在批次结束后汇总")
         self.start_button.setText("正在执行")
         self._set_button_busy_state(self.start_button, True)
@@ -1256,6 +1262,32 @@ class SeedanceMainWindow(QMainWindow):
                 f"运行已打断，已完成 {summary.total_count} 个任务，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.2f} 秒。"
             )
         self.last_result_value.setText(summary_text)
+        quality_order = (
+            "usable",
+            "credits_70",
+            "missing_sessionid",
+            "missing_suffix_zero",
+            "missing_credits",
+            "china_blocked",
+            "other_credits",
+            "task_failed",
+        )
+        quality_labels = {
+            "usable": "标准可用",
+            "credits_70": "70积分不可用",
+            "missing_sessionid": "0积分缺Sessionid",
+            "missing_suffix_zero": "0积分尾部非0",
+            "missing_credits": "积分缺失",
+            "china_blocked": "China过滤",
+            "other_credits": "其他积分异常",
+            "task_failed": "任务失败",
+        }
+        quality_parts = []
+        for key in quality_order:
+            count = summary.account_quality_counts.get(key, 0)
+            if count:
+                quality_parts.append(f"{quality_labels[key]} {count}")
+        self.quality_stats_value.setText(" / ".join(quality_parts) or "未生成账号质量统计")
         network_megabytes = summary.network_transferred_bytes / (1024 * 1024)
         request_type_text = " / ".join(
             f"{key}:{value}" for key, value in sorted(summary.network_request_type_counts.items())
