@@ -109,7 +109,18 @@
   - 直接进入资料页（跳过验证码输入）
 - `wait_confirmation` 失败时会额外记录页面上下文，并标记当时是否仍停留在注册表单、Continue 按钮是否仍可见、资料页/验证码页元素是否已出现。
 - 资料页：等待 `Year / Month / Day` 相关表单元素出现。
-- 资料页：等待 `Year / Month / Day` 相关稳定元素，文本 `year / month / day / birthday` 作为兜底，并在失败时采集页面上下文。
+- 资料页：等待 `Year / Month / Day` 相关稳定元素，文本 `year / month / day / birthday / tell us about yourself` 作为兜底，并在失败时采集页面上下文。
+- `fill_profile` 当前已改为专用等待链路：
+  - 资料页等待窗口独立拉长到 `15` 秒
+  - 若页面仍停留在验证码页，会继续等待过渡，不再过早判成资料页失败
+  - 失败时会额外记录：
+    - `signup_form=visible`
+    - `continue_button=visible`
+    - `confirmation_input=visible`
+    - `profile_form=visible`
+    - `year_input=visible`
+    - `month_select=visible`
+    - `day_select=visible`
 - 成功页：要求同时避开 `login/signup` URL，并等待积分区、生成按钮、菜单区等稳定元素之一出现。
 
 ## 当前邮箱适配策略

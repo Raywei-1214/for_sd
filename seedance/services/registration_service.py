@@ -31,6 +31,7 @@ from seedance.core.config import (
     NEXT_BUTTON_SELECTORS,
     OPEN_HOME_READY_WAIT_SECONDS,
     PAGE_READY_WAIT_SECONDS,
+    PROFILE_READY_WAIT_SECONDS,
     POPUP_CLOSE_SELECTORS,
     PROBE_BALANCE_SELECTORS,
     PROBE_GENERATE_BUTTON_SELECTORS,
@@ -717,6 +718,87 @@ class RegistrationService:
             return base_context
         return "context_capture_empty"
 
+    async def _capture_profile_context(self, page: Page) -> str | None:
+        base_context = await self._capture_page_context(page)
+        extra_context: list[str] = []
+
+        try:
+            if await self._has_visible_selector(page, SIGNUP_FORM_READY_SELECTORS):
+                extra_context.append("signup_form=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, CONTINUE_BUTTON_SELECTORS):
+                extra_context.append("continue_button=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
+                extra_context.append("confirmation_input=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, PROFILE_READY_SELECTORS):
+                extra_context.append("profile_form=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, YEAR_INPUT_SELECTORS):
+                extra_context.append("year_input=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, MONTH_SELECT_SELECTORS):
+                extra_context.append("month_select=visible")
+        except Exception:
+            pass
+
+        try:
+            if await self._has_visible_selector(page, DAY_SELECT_SELECTORS):
+                extra_context.append("day_select=visible")
+        except Exception:
+            pass
+
+        if base_context and extra_context:
+            return f"{base_context} | {' | '.join(extra_context)}"
+        if extra_context:
+            return " | ".join(extra_context)
+        if base_context:
+            return base_context
+        return "context_capture_empty"
+
+    async def _wait_for_profile_state(self, page: Page) -> bool:
+        # ================================
+        # 资料页不是所有时候都会在验证码输入后立刻稳定出现
+        # 目的: 给“确认页 -> 资料页”的过渡留出更长窗口，并优先识别弱中间态
+        # 边界: 只用于 fill_profile，不改变 open_home / wait_confirmation 节奏
+        # ================================
+        for _ in range(PROFILE_READY_WAIT_SECONDS):
+            if await self._has_visible_selector(page, PROFILE_READY_SELECTORS):
+                return True
+            if await self._has_text_marker(page, PROFILE_READY_TEXT_MARKERS):
+                return True
+
+            # 仍停留在验证码页时继续等待，不立即把它误判成资料页失败
+            if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
+                await asyncio.sleep(1)
+                continue
+            if await self._has_text_marker(
+                page,
+                CONFIRMATION_READY_TEXT_MARKERS + (CONFIRMATION_BODY_TEXT,),
+            ):
+                await asyncio.sleep(1)
+                continue
+
+            await asyncio.sleep(1)
+
+        return False
+
     async def _fill_verification_code(
         self,
         page: Page,
@@ -748,16 +830,10 @@ class RegistrationService:
         result: RegistrationResult,
     ) -> tuple[bool, tuple[int, str, int] | None]:
         self._mark_step(result, RegistrationStep.FILL_PROFILE)
-        profile_ready = await self._wait_for_page_state(
-            page,
-            selectors=PROFILE_READY_SELECTORS,
-            text_markers=PROFILE_READY_TEXT_MARKERS,
-            attempts=max(PAGE_READY_WAIT_SECONDS * 2, 6),
-            interval_seconds=1,
-        )
+        profile_ready = await self._wait_for_profile_state(page)
         if not profile_ready:
             await self.save_screenshot(page, "error_fill_profile")
-            failure_context = await self._capture_page_context(page)
+            failure_context = await self._capture_profile_context(page)
             self._fail_step(
                 result,
                 RegistrationStep.FILL_PROFILE,

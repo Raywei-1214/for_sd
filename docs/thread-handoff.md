@@ -52,6 +52,10 @@
   - 保留 `script / xhr / fetch / stylesheet`
 - `tempmail.lol` 已补 `Loading...` 等待逻辑：会先等真实邮箱生成，再进入提取
 - `fill_profile` 已升级为“稳定元素 + 文本标记 + 失败上下文”三层断言，不再只靠单一 `Year` 输入框
+- `fill_profile` 当前已进一步升级：
+  - 资料页等待窗口独立拉长到 `15` 秒
+  - 若页面还停留在验证码页，会继续等待过渡，不再过早失败
+  - 失败时会补 `signup_form / continue_button / confirmation_input / profile_form / year_input / month_select / day_select` 可见性标记
 - `run_report.summary` 已补齐 `available_count / available_rate / duration_seconds`
 - `32ee293`（省流拦截 + 收紧重试）已按用户要求回退，避免继续污染对照组
 - 注册任务当前已补轻量网络统计：

@@ -34,6 +34,7 @@ EMAIL_HARD_RELOAD_INTERVAL = 6
 STEP_RETRY_COUNT = 5
 PAGE_READY_WAIT_SECONDS = 3
 OPEN_HOME_READY_WAIT_SECONDS = 20
+PROFILE_READY_WAIT_SECONDS = 15
 FORM_SETTLE_WAIT_SECONDS = 2
 CONFIRMATION_POLL_ATTEMPTS = 10
 CONFIRMATION_POLL_INTERVAL_SECONDS = 3
@@ -129,10 +130,12 @@ NEXT_BUTTON_SELECTORS = (
 
 YEAR_INPUT_SELECTORS = (
     "input[placeholder='Year']",
+    "input[placeholder*='Year' i]",
     "input[aria-label*='Year' i]",
     "input[name*='year' i]",
     "input[autocomplete='bday-year']",
     "input[inputmode='numeric'][maxlength='4']",
+    "[data-testid*='year'] input",
 )
 YEAR_INPUT_SELECTOR = YEAR_INPUT_SELECTORS[0]
 MONTH_SELECT_SELECTORS = (
@@ -141,6 +144,7 @@ MONTH_SELECT_SELECTORS = (
     "div[role='combobox']:has-text('Month')",
     "div[aria-label*='Month' i]",
     "input[placeholder='Month']",
+    "[data-testid*='month']",
 )
 DAY_SELECT_SELECTORS = (
     "div.lv-select-view:has-text('Day')",
@@ -148,6 +152,7 @@ DAY_SELECT_SELECTORS = (
     "div[role='combobox']:has-text('Day')",
     "div[aria-label*='Day' i]",
     "input[placeholder='Day']",
+    "[data-testid*='day']",
 )
 MONTH_OPTION_TEMPLATE_SELECTORS = (
     "div.lv-select-option:text-is('{value}')",
@@ -167,6 +172,7 @@ PROFILE_READY_TEXT_MARKERS = (
     "birth",
     "birthday",
     "date of birth",
+    "tell us about yourself",
 )
 
 CONFIRMATION_BODY_TEXT = "confirm"
