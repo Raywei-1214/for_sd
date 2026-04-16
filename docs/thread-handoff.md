@@ -44,6 +44,7 @@
 - `10minutemail.net` 已补专用验证码链路：
   - 验证码等待优先走站内 `updatemailbox()` 轻刷新
   - 会优先点开 `Dreamina / CapCut / verification / code` 相关邮件预览
+  - 若关键词邮件未命中，会回退点开最新一封邮件
   - 只有连续多轮无结果才整页 `reload()`
 - 验证码等待当前已统一改为“站点内轻刷新优先，整页 reload 降频”
 - 浏览器上下文当前已启用基础资源拦截：
@@ -65,6 +66,8 @@
 - `wait_confirmation` 当前已补强制页面采样兜底：至少会输出 `context_capture_empty`，不再出现完全无字段的空白上下文
 - `fill_verification_code` 当前也会记录邮箱页失败上下文：
   - 便于区分“收件箱没刷新出邮件”与“已打开邮件正文但没有验证码”
+  - `10minutemail.net` 会额外输出 `mail_rows` 与 `mail_preview=open/closed`
+  - 即使邮箱页状态拿不到，也会显式写出 `context_capture_*`，不再继续出现空白上下文
 - 旧的“一键启动”批处理、单独安装 Playwright 脚本、历史性测试脚本已从项目根目录清理
 - 项目已初始化 git，并已推送到公开仓库 `git@github.com:Raywei-1214/for_sd.git`
 - 推送路线与 `CC_AutoCut` 保持一致，统一复用 GitHub SSH 凭据，不走 `https`

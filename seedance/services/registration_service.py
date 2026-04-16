@@ -155,6 +155,7 @@ class RegistrationService:
         error_message: str,
         failure_context: str | None = None,
     ) -> RegistrationResult:
+        self._sync_temp_email_snapshot(result)
         result.failed_step = step.value
         result.error_message = error_message
         result.failure_context = failure_context
@@ -162,6 +163,19 @@ class RegistrationService:
         if failure_context:
             logger.error(f"[线程{self.thread_id}] 失败上下文 {step.value}: {failure_context}")
         return result
+
+    def _sync_temp_email_snapshot(self, result: RegistrationResult) -> None:
+        # ================================
+        # 失败结果需要尽量带上邮箱侧快照
+        # 目的: 避免验证码失败时报告里 email/provider 仍是空，影响后续排查
+        # 边界: 仅回填已经拿到的邮箱、密码、站点，不覆盖后续真实采集到的账号字段
+        # ================================
+        if self.temp_email_service.temp_email and not result.email:
+            result.email = self.temp_email_service.temp_email
+        if self.temp_email_service.password and not result.password:
+            result.password = self.temp_email_service.password
+        if self.temp_email_service.provider_name and not result.provider_name:
+            result.provider_name = self.temp_email_service.provider_name
 
     async def _capture_page_context(self, page: Page | None) -> str | None:
         if page is None:
@@ -818,7 +832,7 @@ class RegistrationService:
                 result,
                 RegistrationStep.FILL_VERIFICATION_CODE,
                 "验证码获取失败",
-                failure_context=failure_context,
+                failure_context=failure_context or "context_capture_empty",
             )
             return False
         await page.keyboard.type(verification_code, delay=100)
@@ -962,6 +976,7 @@ class RegistrationService:
             email_page, email_ready = await self._acquire_temp_email(context, result)
             if not email_ready:
                 return result
+            self._sync_temp_email_snapshot(result)
             if not await self._fill_credentials(main_page, result):
                 return result
             if not await self._submit_credentials(main_page, result):

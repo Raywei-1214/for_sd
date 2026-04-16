@@ -166,6 +166,7 @@
   - 邮箱地址优先读取 `#fe_text` 与复制按钮 `data-clipboard-text`
   - 验证码阶段优先触发站内 `updatemailbox()` 轻刷新
   - 再尝试点开 `Dreamina / CapCut / verification / code` 相关邮件预览
+  - 若关键词邮件未命中，会回退点开最新一封邮件，避免一直卡在邮箱列表页
   - 只有连续多轮仍无验证码时，才做整页 `reload()`
 - 验证码等待阶段当前统一改为“站点内轻刷新优先，整页 reload 降频”：
   - 有专属刷新能力的站点优先走站内刷新
@@ -236,8 +237,13 @@
   - `url / title / body 片段`
   - 若是 `10minutemail.net`，还会额外标记：
     - `mailbox_table=visible`
+    - `mail_rows=<数量>`
     - `dreamina_mail=visible`
-    - `mail_preview=open`
+    - `mail_preview=open/closed`
+  - 若邮箱页无法访问或未采到有效内容，也会显式写出：
+    - `context_capture_page_missing`
+    - `context_capture_page_closed`
+    - `context_capture_empty`
 - `wait_confirmation` 当前已改为强制页面采样：
   - 即使未命中额外状态标记，也会至少写入 `context_capture_empty`，避免报告里继续出现完全空白上下文
 

@@ -177,8 +177,11 @@ class TempEmailService:
         # ================================
         # 10minutemail.net 验证码邮件通常在 InBox 表格里
         # 目的: 优先点开 Dreamina / CapCut / verification 相关邮件，避免正文一直停留在欢迎邮件
-        # 边界: 仅做轻量尝试，不把预览失败当成硬错误
+        # 边界: 关键词未命中时，回退点最新一封邮件；仍然只做轻量尝试，不把预览失败当成硬错误
         # ================================
+        if "readmail.html" in (page.url or ""):
+            return
+
         preview_selectors = (
             "a.row-link:has-text('Dreamina')",
             "a.row-link:has-text('CapCut')",
@@ -190,6 +193,20 @@ class TempEmailService:
             "a.row-link:has-text('Code')",
         )
         for selector in preview_selectors:
+            try:
+                preview = page.locator(selector).first
+                if await preview.count() and await preview.is_visible():
+                    await preview.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
+        fallback_selectors = (
+            "#maillist a.row-link",
+            "table#maillist a.row-link",
+        )
+        for selector in fallback_selectors:
             try:
                 preview = page.locator(selector).first
                 if await preview.count() and await preview.is_visible():
@@ -340,7 +357,7 @@ class TempEmailService:
 
     async def capture_verification_context(self, page: Page | None) -> str | None:
         if page is None:
-            return None
+            return "context_capture_page_missing"
 
         try:
             current_url = page.url or ""
@@ -379,6 +396,13 @@ class TempEmailService:
                 pass
 
             try:
+                mail_rows = await page.locator("#maillist a.row-link").count()
+                if mail_rows:
+                    context_parts.append(f"mail_rows={mail_rows}")
+            except Exception:
+                pass
+
+            try:
                 if await page.locator("a.row-link:has-text('Dreamina')").count():
                     context_parts.append("dreamina_mail=visible")
             except Exception:
@@ -386,9 +410,16 @@ class TempEmailService:
 
             if "readmail.html" in current_url:
                 context_parts.append("mail_preview=open")
+            else:
+                context_parts.append("mail_preview=closed")
 
         if not context_parts:
-            return None
+            try:
+                if page.is_closed():
+                    return "context_capture_page_closed"
+            except Exception:
+                pass
+            return "context_capture_empty"
         return " | ".join(context_parts)
 
     async def _extract_guerrillamail_email(self, page: Page) -> str | None:
