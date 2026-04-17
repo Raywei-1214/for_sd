@@ -1094,8 +1094,15 @@ class SeedanceMainWindow(QMainWindow):
             [provider["name"] for provider in TEMP_EMAIL_PROVIDERS]
         )
 
+        # ================================
+        # 站点质量逐行使用独立段落渲染
+        # 目的: 让每个邮箱站点之间保留一点呼吸感，但不明显拉高整块区域
+        # 边界: 这里只调整展示间距，不改变统计口径与高风险判定
+        # ================================
         html_lines: list[str] = [
-            '<span style="color: #6D6A5F;">按邮箱站点逐条统计：失败率 / 可用率 / 70积分概率</span>'
+            '<p style="margin-top: 0px; margin-bottom: 4px; color: #6D6A5F;">'
+            "按邮箱站点逐条统计：失败率 / 可用率 / 70积分概率"
+            "</p>"
         ]
         for snapshot in snapshots:
             line_text = (
@@ -1110,8 +1117,10 @@ class SeedanceMainWindow(QMainWindow):
                 or snapshot["credits_70_rate"] > HIGH_RISK_CREDITS_70_RATE_THRESHOLD
             )
             color = "#A85448" if is_high_risk else "#3A392F"
-            html_lines.append(f'<span style="color: {color};">{html.escape(line_text)}</span>')
-        return "<br>".join(html_lines)
+            html_lines.append(
+                f'<p style="margin-top: 0px; margin-bottom: 3px; color: {color};">{html.escape(line_text)}</p>'
+            )
+        return "".join(html_lines)
 
     def _refresh_provider_quality_summary(self) -> None:
         self.provider_quality_value.setText(self._format_provider_quality_summary_html())
