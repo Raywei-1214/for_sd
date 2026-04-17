@@ -7,7 +7,7 @@ from datetime import datetime
 from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_MAIL_HEALTH_FILE, TEMP_EMAIL_PROVIDERS
 from seedance.core.logger import get_logger
 from seedance.core.models import BatchProgress, BatchSummary, RegistrationResult, RuntimeOptions
-from seedance.core.notion_rules import classify_account_quality
+from seedance.core.notion_rules import classify_account_quality, parse_credits_value
 from seedance.infra.account_store import AccountStore
 from seedance.infra.browser_detector import find_chrome_browser, load_browser_config, save_browser_config
 from seedance.infra.report_writer import RunReportWriter, build_failure_reason
@@ -161,11 +161,14 @@ def _update_provider_health(results: list[RegistrationResult]) -> None:
         if not result.provider_name:
             continue
 
+        credits_value = parse_credits_value(result.credits)
         if result.success:
             health_store.record_provider_result(
                 result.provider_name,
                 success=True,
                 hard_failure=False,
+                credits_observed=credits_value is not None,
+                credits_70=credits_value == 70,
             )
             continue
 
@@ -177,6 +180,8 @@ def _update_provider_health(results: list[RegistrationResult]) -> None:
             result.provider_name,
             success=False,
             hard_failure=hard_failure,
+            credits_observed=False,
+            credits_70=False,
         )
 
 

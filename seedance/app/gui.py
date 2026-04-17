@@ -35,12 +35,13 @@ from PySide6.QtWidgets import (
 
 from pathlib import Path
 
-from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS
+from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS, TEMP_MAIL_HEALTH_FILE
 from seedance.core.env import get_local_env_path, read_local_env_values, update_local_env_values
 from seedance.core.logger import get_logger
 from seedance.core.models import BatchProgress, BatchSummary, WatermarkProgress, WatermarkRunOptions, WatermarkSummary
 from seedance.infra.browser_detector import load_browser_config, save_browser_config
 from seedance.infra.notion_client import NotionClient
+from seedance.infra.temp_mail_health import HIGH_RISK_CREDITS_70_RATE_THRESHOLD, HIGH_RISK_FAILURE_RATE_THRESHOLD, TempMailHealthStore
 from seedance.orchestration.batch_runner import main as run_batch
 from seedance.orchestration.watermark_runner import run_watermark_batch
 
@@ -815,6 +816,7 @@ class SeedanceMainWindow(QMainWindow):
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
         self.quality_stats_value = self._create_note_label("尚未生成账号质量统计")
         self.network_stats_value = self._create_note_label("尚未生成网络统计")
+        self.provider_risk_value = self._create_note_label("尚未生成邮箱站点风险统计")
 
         detail_layout.addLayout(self._create_value_block("当前进度", self.progress_bar))
         detail_layout.addWidget(self.progress_detail_value)
@@ -822,6 +824,7 @@ class SeedanceMainWindow(QMainWindow):
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
         detail_layout.addLayout(self._create_value_block("账号质量统计", self.quality_stats_value))
         detail_layout.addLayout(self._create_value_block("请求量/资源量统计", self.network_stats_value))
+        detail_layout.addLayout(self._create_value_block("邮箱站点风险", self.provider_risk_value))
         return card
 
     def _build_log_card(self) -> QFrame:
@@ -911,6 +914,32 @@ class SeedanceMainWindow(QMainWindow):
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
 
+    def _format_provider_risk_summary_html(self) -> str:
+        health_store = TempMailHealthStore(TEMP_MAIL_HEALTH_FILE)
+        high_risk_providers = health_store.list_high_risk_providers()
+        if not high_risk_providers:
+            return "暂无高风险邮箱站点"
+
+        # ================================
+        # 风险展示只负责高亮问题站点
+        # 目的: 让用户在运行概览里直接看到该回避的邮箱池
+        # 边界: 红字仅用于展示，不参与健康度调度决策
+        # ================================
+        html_lines: list[str] = []
+        for snapshot in high_risk_providers:
+            metrics: list[str] = []
+            if snapshot["credits_70_rate"] > HIGH_RISK_CREDITS_70_RATE_THRESHOLD:
+                metrics.append(f"70积分概率 {snapshot['credits_70_rate'] * 100:.1f}%")
+            if snapshot["failure_rate"] > HIGH_RISK_FAILURE_RATE_THRESHOLD:
+                metrics.append(f"失败率 {snapshot['failure_rate'] * 100:.1f}%")
+            metrics.append(f"样本 {snapshot['attempt_count']}")
+            line_text = f"{snapshot['provider_name']} | {' | '.join(metrics)}"
+            html_lines.append(f'<span style="color: #A85448;">{html.escape(line_text)}</span>')
+        return "<br>".join(html_lines)
+
+    def _refresh_provider_risk_summary(self) -> None:
+        self.provider_risk_value.setText(self._format_provider_risk_summary_html())
+
     def _create_value_block(self, label_text: str, value_widget: QWidget) -> QVBoxLayout:
         layout = QVBoxLayout()
         layout.setSpacing(4)
@@ -942,6 +971,7 @@ class SeedanceMainWindow(QMainWindow):
         self.last_result_value.setText("最近一次运行结果将在这里显示")
         self.quality_stats_value.setText("尚未生成账号质量统计")
         self.network_stats_value.setText("尚未生成网络统计")
+        self._refresh_provider_risk_summary()
         self._set_button_locked_state(self.start_button, False)
         self._set_button_locked_state(self.stop_button, True)
 
@@ -1212,6 +1242,7 @@ class SeedanceMainWindow(QMainWindow):
         self.last_result_value.setText("任务已启动，等待批量结果...")
         self.quality_stats_value.setText("运行中，账号质量统计将在批次结束后汇总")
         self.network_stats_value.setText("运行中，网络统计将在批次结束后汇总")
+        self.provider_risk_value.setText("运行中，邮箱站点风险将在批次结束后刷新")
         self.start_button.setText("正在执行")
         self._set_button_busy_state(self.start_button, True)
         self._set_button_busy_state(self.stop_button, False)
@@ -1296,6 +1327,7 @@ class SeedanceMainWindow(QMainWindow):
             f"请求 {summary.network_request_count}，响应 {summary.network_response_count}，失败请求 {summary.network_failed_request_count}，"
             f"累计资源 {network_megabytes:.2f} MB\n类型分布：{request_type_text}"
         )
+        self._refresh_provider_risk_summary()
         self.append_log("GUI 执行完毕，统计卡片已刷新。")
         self._append_notion_failure_summary(summary.notion_failures_path)
         self._set_running_state(False)
@@ -1311,6 +1343,7 @@ class SeedanceMainWindow(QMainWindow):
     def _handle_run_failed(self, error_message: str) -> None:
         self.last_result_value.setText(f"启动失败：{error_message}")
         self.network_stats_value.setText("启动失败，未生成网络统计")
+        self._refresh_provider_risk_summary()
         self.append_log(f"GUI 执行失败: {error_message}")
         QMessageBox.critical(self, "执行失败", error_message)
         self._set_running_state(False)

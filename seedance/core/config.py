@@ -16,6 +16,7 @@ IP_COUNTRY_URL = "http://ip-api.com/json/?fields=country"
 TEMP_EMAIL_PROVIDERS = [
     {"name": "mail.tm", "url": "https://mail.tm/zh/"},
     {"name": "tempmail.lol", "url": "https://tempmail.lol/"},
+    {"name": "mail.chatgpt.org.uk", "url": "https://mail.chatgpt.org.uk/"},
     {"name": "internxt", "url": "https://internxt.com/temporary-email"},
     {"name": "tempemail.cc", "url": "https://www.tempemail.cc/fr"},
     # ================================

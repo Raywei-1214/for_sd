@@ -90,6 +90,15 @@ class TempEmailService:
                 await self._refresh_internxt_inbox(page)
             await asyncio.sleep(1)
 
+    async def _refresh_gptmail_inbox(self, page: Page) -> None:
+        try:
+            refresh_button = page.locator("#refreshInboxBtn").first
+            if await refresh_button.count() and await refresh_button.is_visible():
+                await refresh_button.click(timeout=5000)
+                await asyncio.sleep(2)
+        except Exception:
+            return
+
     async def _refresh_internxt_inbox(self, page: Page) -> None:
         try:
             refresh_button = page.locator("button:has-text('Refresh')").first
@@ -105,6 +114,10 @@ class TempEmailService:
         # 目的: 用站内按钮/Ajax 刷新代替整页 reload，减少流量和页面重建抖动
         # 边界: 只要 provider 有专属刷新链路就优先命中；没有再尝试通用刷新控件
         # ================================
+        if adapter.name == "mail.chatgpt.org.uk":
+            await self._refresh_gptmail_inbox(page)
+            return True
+
         if adapter.name == "internxt":
             await self._refresh_internxt_inbox(page)
             return True
@@ -239,6 +252,46 @@ class TempEmailService:
             except Exception:
                 continue
 
+    async def _open_gptmail_mail_preview(self, page: Page) -> None:
+        # ================================
+        # GPTMail 邮件正文在弹层 iframe 中
+        # 目的: 先点开候选邮件，再读取 iframe 正文里的验证码
+        # 边界: 只做轻量点击，不把弹层失败当成硬错误
+        # ================================
+        preview_selectors = (
+            "#emailList li:has-text('Dreamina')",
+            "#emailList li:has-text('CapCut')",
+            "#emailList li:has-text('verification')",
+            "#emailList li:has-text('Verification')",
+            "#emailList li:has-text('confirm')",
+            "#emailList li:has-text('Confirm')",
+            "#emailList li:has-text('code')",
+            "#emailList li:has-text('Code')",
+        )
+        for selector in preview_selectors:
+            try:
+                preview = page.locator(selector).first
+                if await preview.count() and await preview.is_visible():
+                    await preview.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
+        fallback_selectors = (
+            "#emailList li:not(.skeleton-email-item):not(.empty-state)",
+            ".email-list li",
+        )
+        for selector in fallback_selectors:
+            try:
+                preview = page.locator(selector).first
+                if await preview.count() and await preview.is_visible():
+                    await preview.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
     def _pick_provider(self) -> dict:
         if self.specified_email:
             return next(
@@ -265,10 +318,38 @@ class TempEmailService:
         page: Page,
         adapter: TempMailAdapter,
     ) -> bool:
+        if adapter.name == "mail.chatgpt.org.uk":
+            return await self._wait_for_gptmail_ready(page, adapter)
+
         if adapter.name == "internxt":
             return await self._wait_for_internxt_ready(page, adapter)
 
         for _ in range(EMAIL_SCAN_SECONDS):
+            for selector in adapter.ready_selectors:
+                try:
+                    node = await page.query_selector(selector)
+                    if node and await node.is_visible():
+                        return True
+                except Exception:
+                    continue
+            await asyncio.sleep(1)
+        return False
+
+    async def _wait_for_gptmail_ready(
+        self,
+        page: Page,
+        adapter: TempMailAdapter,
+    ) -> bool:
+        # ================================
+        # GPTMail 会先自动跳到专属邮箱 URL
+        # 目的: 只有真实邮箱或收件箱控件出现时，才视为页面 ready
+        # 边界: 仅对 GPTMail 生效，不改其他站点的 ready 口径
+        # ================================
+        for _ in range(EMAIL_SCAN_SECONDS):
+            extracted_email = await self._extract_gptmail_email(page)
+            if extracted_email:
+                return True
+
             for selector in adapter.ready_selectors:
                 try:
                     node = await page.query_selector(selector)
@@ -318,6 +399,10 @@ class TempEmailService:
             guerrilla_email = await self._extract_guerrillamail_email(page)
             if guerrilla_email:
                 return guerrilla_email
+        if adapter.name == "mail.chatgpt.org.uk":
+            gptmail_email = await self._extract_gptmail_email(page)
+            if gptmail_email:
+                return gptmail_email
         if adapter.name == "internxt":
             internxt_email = await self._extract_internxt_email(page)
             if internxt_email:
@@ -458,6 +543,34 @@ class TempEmailService:
 
         return None
 
+    async def _extract_gptmail_email(self, page: Page) -> str | None:
+        # ================================
+        # GPTMail 会把邮箱同时写进 URL / 标题 / 页面展示节点
+        # 目的: 多通道提取真实邮箱，降低单一 selector 漂移风险
+        # 边界: 只提取首个合法邮箱，不对营销文本做额外猜测
+        # ================================
+        candidate_sources = [page.url or ""]
+
+        try:
+            candidate_sources.append(await page.title())
+        except Exception:
+            pass
+
+        for selector in ("#emailDisplay", ".email-address", "#modalTo"):
+            try:
+                node = page.locator(selector).first
+                if await node.count():
+                    candidate_sources.append((await node.inner_text()).strip())
+            except Exception:
+                continue
+
+        for candidate_source in candidate_sources:
+            match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", candidate_source)
+            if match and self._is_valid_email(match.group(0)):
+                return match.group(0)
+
+        return None
+
     async def _extract_internxt_email(self, page: Page) -> str | None:
         # ================================
         # Internxt 当前邮箱是前端渲染后的纯文本节点
@@ -535,6 +648,31 @@ class TempEmailService:
                 return match.group(1).upper()
 
         return None
+
+    async def _collect_gptmail_verification_text(self, page: Page) -> str:
+        text_parts: list[str] = []
+
+        try:
+            text_parts.append(await page.evaluate("() => document.body.innerText"))
+        except Exception:
+            pass
+
+        for selector in ("#modalSubject", "#modalFrom", "#modalTo"):
+            try:
+                node = page.locator(selector).first
+                if await node.count():
+                    text_parts.append((await node.inner_text()).strip())
+            except Exception:
+                continue
+
+        try:
+            iframe_body = await page.frame_locator("#emailFrame").locator("body").inner_text(timeout=3000)
+            if iframe_body:
+                text_parts.append(iframe_body.strip())
+        except Exception:
+            pass
+
+        return "\n".join(part for part in text_parts if part)
 
     async def acquire_email(self, context: BrowserContext) -> tuple[Page | None, bool]:
         try:
@@ -627,6 +765,8 @@ class TempEmailService:
             verification_attempts = VERIFICATION_WAIT_ATTEMPTS
             if adapter.name == "internxt":
                 verification_attempts += 10
+            if adapter.name == "mail.chatgpt.org.uk":
+                verification_attempts += 4
             if adapter.name == "10minutemail.net":
                 verification_attempts += 4
             for attempt in range(verification_attempts):
@@ -637,10 +777,14 @@ class TempEmailService:
 
                     if adapter.name == "internxt":
                         await self._open_internxt_mail_preview(email_page)
+                    elif adapter.name == "mail.chatgpt.org.uk" and attempt >= 1:
+                        await self._open_gptmail_mail_preview(email_page)
                     elif adapter.name == "10minutemail.net" and attempt >= 1:
                         await self._open_10minutemail_mail_preview(email_page)
 
                     page_text = await email_page.evaluate("() => document.body.innerText")
+                    if adapter.name == "mail.chatgpt.org.uk":
+                        page_text = await self._collect_gptmail_verification_text(email_page)
                     verification_code = self._extract_code_from_text(page_text, adapter)
                     if not verification_code and adapter.name != GENERIC_TEMP_MAIL_ADAPTER.name:
                         verification_code = self._extract_code_from_text(

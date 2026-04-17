@@ -4,6 +4,8 @@ from pathlib import Path
 from seedance.core.logger import get_logger
 
 logger = get_logger()
+HIGH_RISK_FAILURE_RATE_THRESHOLD = 0.30
+HIGH_RISK_CREDITS_70_RATE_THRESHOLD = 0.60
 
 
 class TempMailHealthStore:
@@ -34,14 +36,26 @@ class TempMailHealthStore:
 
     def _get_provider_stats(self, provider_name: str) -> dict:
         providers = self.data.setdefault("providers", {})
-        provider_stats = providers.setdefault(
-            provider_name,
-            {
-                "success_count": 0,
-                "failure_count": 0,
-                "consecutive_failures": 0,
-            },
+        provider_stats = providers.setdefault(provider_name, {})
+
+        # ================================
+        # 兼容旧版健康文件
+        # 目的: 在不清空历史数据的前提下补齐新的统计字段
+        # 边界: 调度仍只依赖 success/failure/consecutive_failures，不改变旧策略
+        # ================================
+        success_count = int(provider_stats.get("success_count", 0) or 0)
+        failure_count = int(provider_stats.get("failure_count", 0) or 0)
+        total_failure_count = int(provider_stats.get("total_failure_count", failure_count) or 0)
+        attempt_count = int(
+            provider_stats.get("attempt_count", success_count + total_failure_count) or 0
         )
+        provider_stats["success_count"] = success_count
+        provider_stats["failure_count"] = failure_count
+        provider_stats["consecutive_failures"] = int(provider_stats.get("consecutive_failures", 0) or 0)
+        provider_stats["total_failure_count"] = total_failure_count
+        provider_stats["attempt_count"] = max(attempt_count, success_count + total_failure_count)
+        provider_stats["credits_observed_count"] = int(provider_stats.get("credits_observed_count", 0) or 0)
+        provider_stats["credits_70_count"] = int(provider_stats.get("credits_70_count", 0) or 0)
         return provider_stats
 
     def _health_score(self, provider_name: str) -> float:
@@ -96,16 +110,81 @@ class TempMailHealthStore:
         *,
         success: bool,
         hard_failure: bool,
+        credits_observed: bool = False,
+        credits_70: bool = False,
     ) -> None:
         stats = self._get_provider_stats(provider_name)
+        stats["attempt_count"] += 1
 
         if success:
             stats["success_count"] += 1
             stats["consecutive_failures"] = 0
-            self._save()
-            return
+        else:
+            stats["total_failure_count"] += 1
+            if hard_failure:
+                stats["failure_count"] += 1
+                stats["consecutive_failures"] += 1
 
-        if hard_failure:
-            stats["failure_count"] += 1
-            stats["consecutive_failures"] += 1
-            self._save()
+        if credits_observed:
+            stats["credits_observed_count"] += 1
+            if credits_70:
+                stats["credits_70_count"] += 1
+
+        self._save()
+
+    def build_provider_risk_snapshot(
+        self,
+        provider_names: list[str] | None = None,
+    ) -> list[dict]:
+        if provider_names is None:
+            provider_names = sorted(self.data.get("providers", {}).keys())
+
+        snapshots: list[dict] = []
+        for provider_name in provider_names:
+            stats = self._get_provider_stats(provider_name)
+            attempt_count = stats["attempt_count"]
+            credits_observed_count = stats["credits_observed_count"]
+            failure_rate = (
+                stats["total_failure_count"] / attempt_count
+                if attempt_count
+                else 0.0
+            )
+            credits_70_rate = (
+                stats["credits_70_count"] / credits_observed_count
+                if credits_observed_count
+                else 0.0
+            )
+            snapshots.append(
+                {
+                    "provider_name": provider_name,
+                    "attempt_count": attempt_count,
+                    "success_count": stats["success_count"],
+                    "hard_failure_count": stats["failure_count"],
+                    "total_failure_count": stats["total_failure_count"],
+                    "credits_observed_count": credits_observed_count,
+                    "credits_70_count": stats["credits_70_count"],
+                    "failure_rate": failure_rate,
+                    "credits_70_rate": credits_70_rate,
+                }
+            )
+        return snapshots
+
+    def list_high_risk_providers(
+        self,
+        provider_names: list[str] | None = None,
+    ) -> list[dict]:
+        snapshots = self.build_provider_risk_snapshot(provider_names)
+        high_risk_providers = [
+            snapshot
+            for snapshot in snapshots
+            if snapshot["failure_rate"] > HIGH_RISK_FAILURE_RATE_THRESHOLD
+            or snapshot["credits_70_rate"] > HIGH_RISK_CREDITS_70_RATE_THRESHOLD
+        ]
+        return sorted(
+            high_risk_providers,
+            key=lambda snapshot: (
+                max(snapshot["failure_rate"], snapshot["credits_70_rate"]),
+                snapshot["attempt_count"],
+            ),
+            reverse=True,
+        )

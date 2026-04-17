@@ -141,6 +141,28 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
             "code is",
         ),
     ),
+    "mail.chatgpt.org.uk": TempMailAdapter(
+        name="mail.chatgpt.org.uk",
+        ready_selectors=(
+            "#emailDisplay",
+            "#refreshInboxBtn",
+            "#emailList",
+        ),
+        email_value_selectors=(),
+        email_text_selectors=(
+            "#emailDisplay",
+            ".email-address",
+            "#modalTo",
+        ),
+        email_attribute_selectors=(),
+        verification_text_markers=(
+            "verification code",
+            "code is",
+            "dreamina",
+            "capcut",
+            "confirm",
+        ),
+    ),
     "internxt": TempMailAdapter(
         name="internxt",
         ready_selectors=(

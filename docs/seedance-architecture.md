@@ -138,8 +138,16 @@
 - 当前启用的站点池为：
   - `mail.tm`
   - `tempmail.lol`
+  - `mail.chatgpt.org.uk`
   - `internxt`
   - `tempemail.cc`
+- `mail.chatgpt.org.uk` 当前已接入：
+  - 真实浏览器可自动跳到专属邮箱 URL
+  - 邮箱地址可从 `URL / 标题 / #emailDisplay` 多路提取
+  - 验证码正文位于弹层 `iframe`，当前已补专用预览与 iframe 正文提取
+- `tempadd.com` 当前不接入：
+  - 真实浏览器会先落到 Cloudflare 安全验证页
+  - 当前主要问题是风控阻塞，不是简单 selector 失效
 - `10minutemail.net` 当前已暂停：
   - 最近多轮 `70积分` 占比过高
   - 当前先从启用池移除，避免继续消耗流量
@@ -223,6 +231,13 @@
   - `network_transferred_bytes`
   - `network_transferred_megabytes`
   - `network_request_type_counts`
+- `temp_mail_health.json` 当前已额外记录：
+  - `attempt_count`
+  - `total_failure_count`
+  - `credits_observed_count`
+  - `credits_70_count`
+  - 其中调度仍只使用 `success_count / failure_count / consecutive_failures`
+  - `运行概览` 红字风险提示使用 `70积分概率` 与 `总失败率`
 - 报告明细会同时记录每条任务的保存结果：
   - `notion_ok`
   - `notion_skipped`
