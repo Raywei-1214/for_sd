@@ -651,6 +651,14 @@ class SeedanceMainWindow(QMainWindow):
         content_layout.addWidget(log_card, 1)
         return page
 
+    def _switch_to_registration_overview_tab(self) -> None:
+        # ================================
+        # 注册任务启动后自动切到运行概览页
+        # 目的: 让用户在点击开始后立刻看到进度、日志与打断入口
+        # 边界: 这里只负责页签跳转，不承担任务状态判断
+        # ================================
+        self.tab_widget.setCurrentIndex(1)
+
     def _build_header_card(self) -> QFrame:
         card = QFrame()
         card.setObjectName("HeroCard")
@@ -1441,6 +1449,7 @@ class SeedanceMainWindow(QMainWindow):
         self._set_button_busy_state(self.start_button, True)
         self._set_button_busy_state(self.stop_button, False)
         self.stop_button.setText("打断结束")
+        self._switch_to_registration_overview_tab()
         self.append_log("=" * 60)
         self.append_log("GUI 已启动批量注册任务")
         self.append_log(f"当前日志文件: {LOG_FILE}")
