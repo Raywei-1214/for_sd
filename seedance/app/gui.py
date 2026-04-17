@@ -800,14 +800,7 @@ class SeedanceMainWindow(QMainWindow):
         self.start_button.setFixedSize(96, 40)
         self.start_button.clicked.connect(self.start_run)
 
-        self.stop_button = BusyAccentButton("打断结束")
-        self.stop_button.setObjectName("DangerButton")
-        self.stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.stop_button.setFixedSize(100, 40)
-        self.stop_button.clicked.connect(self.stop_run)
-
         button_row.addWidget(self.start_button)
-        button_row.addWidget(self.stop_button)
         button_row.addStretch(1)
 
         control_note = self._create_note_label(
@@ -866,10 +859,25 @@ class SeedanceMainWindow(QMainWindow):
         stats_grid.addWidget(self.rate_stat["card"], 1, 1)
         stats_grid.addWidget(self.available_rate_stat["card"], 1, 2)
 
+        # ================================
+        # 第二页只承载运行态控制
+        # 目的: 把“打断结束”与运行状态放到运行概览里，避免首页同时承担开始与结束两个动作
+        # 边界: 首页仍只负责参数设置与启动入口
+        # ================================
+        summary_action_row = QHBoxLayout()
+        summary_action_row.setSpacing(10)
+        summary_action_row.setContentsMargins(0, 4, 0, 2)
+        layout.addLayout(summary_action_row)
+
+        status_panel = QFrame()
+        status_panel.setObjectName("StatCard")
+        status_layout = QVBoxLayout(status_panel)
+        status_layout.setContentsMargins(14, 12, 14, 12)
+        status_layout.setSpacing(6)
+
         detail_layout = QVBoxLayout()
         detail_layout.setSpacing(8)
         detail_layout.setContentsMargins(0, 2, 0, 0)
-        layout.addLayout(detail_layout)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setRange(0, DEFAULT_TOTAL_COUNT)
@@ -885,6 +893,28 @@ class SeedanceMainWindow(QMainWindow):
         self.network_stats_value = self._create_note_label("尚未生成网络统计")
         self.provider_quality_value = self._create_note_label("按邮箱站点逐条输出失败率、可用率、70积分概率")
 
+        status_layout.addWidget(self._create_field_label("运行状态"))
+        status_layout.addWidget(self.run_status_value)
+        status_layout.addStretch(1)
+        summary_action_row.addWidget(status_panel, 1)
+
+        stop_panel = QFrame()
+        stop_panel.setObjectName("StatCard")
+        stop_layout = QVBoxLayout(stop_panel)
+        stop_layout.setContentsMargins(14, 12, 14, 12)
+        stop_layout.setSpacing(10)
+        stop_layout.addWidget(self._create_field_label("结束控制"))
+
+        self.stop_button = BusyAccentButton("打断结束")
+        self.stop_button.setObjectName("DangerButton")
+        self.stop_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.stop_button.setFixedSize(100, 40)
+        self.stop_button.clicked.connect(self.stop_run)
+        stop_layout.addWidget(self.stop_button, 0, Qt.AlignLeft)
+        stop_layout.addStretch(1)
+        summary_action_row.addWidget(stop_panel, 0)
+
+        layout.addLayout(detail_layout)
         detail_layout.addLayout(self._create_value_block("当前进度", self.progress_bar))
         detail_layout.addWidget(self.progress_detail_value)
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
