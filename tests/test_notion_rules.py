@@ -175,6 +175,28 @@ class NotionRulesTests(unittest.TestCase):
             )
         )
 
+    def test_probe_workspace_nudge_detects_half_ready_shell(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+
+        self.assertTrue(
+            RegistrationService._needs_probe_workspace_nudge(
+                service,
+                page_context="url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets",
+                model_dropdown_found=False,
+                generate_button_samples=[],
+                has_numeric_signal=False,
+            )
+        )
+        self.assertFalse(
+            RegistrationService._needs_probe_workspace_nudge(
+                service,
+                page_context="url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets Canvas 0 Upgrade",
+                model_dropdown_found=True,
+                generate_button_samples=["Generate 0"],
+                has_numeric_signal=True,
+            )
+        )
+
     def test_numeric_probe_signal_requires_credits_or_cost(self) -> None:
         service = RegistrationService.__new__(RegistrationService)
 

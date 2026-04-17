@@ -311,6 +311,22 @@ class RegistrationService:
     ) -> bool:
         return bool(seedance_credits is not None or seedance2_cost is not None)
 
+    def _needs_probe_workspace_nudge(
+        self,
+        page_context: str | None,
+        model_dropdown_found: bool,
+        generate_button_samples: list[str] | None,
+        has_numeric_signal: bool,
+    ) -> bool:
+        if has_numeric_signal or model_dropdown_found or generate_button_samples:
+            return False
+
+        if not page_context:
+            return True
+
+        context_text = page_context.lower()
+        return "explore create assets" in context_text or "start creating with ai agent" in context_text
+
     async def _dismiss_probe_blockers(self, page: Page) -> None:
         # ================================
         # 探针页会被横幅/弹层/半登录态挡住
@@ -739,6 +755,7 @@ class RegistrationService:
             "seedance_credits": current_seedance_credits,
             "model_dropdown_found": current_model_dropdown_found,
             "model_fast_selected": current_model_fast_selected,
+            "generate_button_samples": current_generate_button_samples,
             "probe_context": probe_context,
             "page_context": page_context,
         }
@@ -781,6 +798,7 @@ class RegistrationService:
             current_seedance_credits = probe_snapshot["seedance_credits"]
             current_model_dropdown_found = bool(probe_snapshot["model_dropdown_found"])
             current_model_fast_selected = bool(probe_snapshot["model_fast_selected"])
+            current_generate_button_samples = list(probe_snapshot["generate_button_samples"])
 
             probe_context_blocked = self._is_probe_context_blocked(page_context)
             probe_has_numeric_signal = self._has_numeric_probe_signal(
@@ -788,11 +806,17 @@ class RegistrationService:
                 current_seedance2_cost,
             )
             probe_is_video_context = self._is_video_probe_context(page_context)
-            if probe_context_blocked:
+            probe_needs_workspace_nudge = self._needs_probe_workspace_nudge(
+                page_context=page_context,
+                model_dropdown_found=current_model_dropdown_found,
+                generate_button_samples=current_generate_button_samples,
+                has_numeric_signal=probe_has_numeric_signal,
+            )
+            if probe_context_blocked or probe_needs_workspace_nudge:
                 workspace_action_taken = await self._enter_video_probe_workspace(page)
                 if workspace_action_taken:
                     logger.info(
-                        f"[线程{self.thread_id}] 探针采样后仍在首页壳子，追加一次工作区引导"
+                        f"[线程{self.thread_id}] 探针采样后工作区未 ready，追加一次工作区引导"
                     )
                     probe_snapshot = await self._collect_probe_snapshot(
                         page=page,
@@ -806,6 +830,7 @@ class RegistrationService:
                     current_seedance_credits = probe_snapshot["seedance_credits"]
                     current_model_dropdown_found = bool(probe_snapshot["model_dropdown_found"])
                     current_model_fast_selected = bool(probe_snapshot["model_fast_selected"])
+                    current_generate_button_samples = list(probe_snapshot["generate_button_samples"])
                     probe_context_blocked = self._is_probe_context_blocked(page_context)
                     probe_has_numeric_signal = self._has_numeric_probe_signal(
                         current_seedance_credits,
