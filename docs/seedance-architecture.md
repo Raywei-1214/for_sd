@@ -143,14 +143,16 @@
   - `mail.tm`
   - `tempmail.lol`
   - `mail.chatgpt.org.uk`
-  - `mailticking.com`
   - `internxt`
   - `tempemail.cc`
 - `mail.chatgpt.org.uk` 当前已接入：
   - 真实浏览器可自动跳到专属邮箱 URL
   - 邮箱地址可从 `URL / 标题 / #emailDisplay` 多路提取
   - 验证码正文位于弹层 `iframe`，当前已补专用预览与 iframe 正文提取
-- `mailticking.com` 当前已接入：
+- `mailticking.com` 当前已暂停：
+  - 最新一轮跑测可用率仅 `10%`
+  - 当前先从启用池移除，避免继续消耗注册流量
+- `mailticking.com` 虽已接入，但当前暂停：
   - 入口页可直接打开，真实浏览器实测未先落到 Cloudflare 安全挑战页
   - 邮箱地址位于 `#active-mail`，同时会写入 `data-clipboard-text`
   - 收件箱主列表位于 `#message-list`，站内刷新主入口为 `#refresh-button`
