@@ -155,6 +155,13 @@
   - 邮箱地址不是单节点展示，而是由 `#pre_button + #domain` 组合得到
   - `New random name` 可直接切换新邮箱，当前主路径未见 reCAPTCHA 阻塞
   - 收件箱主路径会命中 `/api/mails?email=...&epin=...`，适合沿现有页面型 provider 模型接入
+  - 注册状态机当前有一组显式绑定修复，仅对 `tempmail.plus` 生效：
+    - `wait_confirmation` 识别“确认元素残留，但首页壳已出现”的混合态
+    - `fill_profile` 识别“验证码后直接回首页，不再出现生日资料页”的分支
+    - `complete_registration` 在已进入成功首页时直接放行，不再点击 `Next`
+  - 上述分支当前不复用到其他邮箱站点：
+    - 目的: 避免把 `tempmail.plus` 的页面切换特性误扩散到其他已稳定站点
+    - 边界: 其他 provider 继续沿用原有公共注册状态机
 - `tempadd.com` 当前不接入：
   - 真实浏览器会先落到 Cloudflare 安全验证页
   - 当前主要问题是风控阻塞，不是简单 selector 失效

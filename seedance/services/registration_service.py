@@ -1058,6 +1058,28 @@ class RegistrationService:
         )
         return False
 
+    # ================================
+    # TempMail.Plus 当前存在验证码后直接回首页的特殊状态机
+    # 目的: 把这轮修复严格显式绑定到单一 provider，避免影响其他稳定站点
+    # 边界: 这里只做 provider 判定，不承载任何通用状态判断职责
+    # ================================
+    def _is_tempmail_plus_provider(self) -> bool:
+        return self.temp_email_service.provider_name == "tempmail.plus"
+
+    async def _is_tempmail_plus_home_state(self, page: Page) -> bool:
+        if not self._is_tempmail_plus_provider():
+            return False
+
+        current_url = (page.url or "").lower()
+        if any(segment in current_url for segment in LOGIN_RELATED_URL_SEGMENTS):
+            return False
+
+        if await self._has_visible_selector(page, SUCCESS_READY_SELECTORS):
+            return True
+        if await self._has_text_marker(page, SUCCESS_READY_TEXT_MARKERS):
+            return True
+        return False
+
     async def _wait_for_post_submit_state(self, page: Page) -> str | None:
         for _ in range(CONFIRMATION_POLL_ATTEMPTS):
             if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
@@ -1072,6 +1094,14 @@ class RegistrationService:
                 return "profile"
             if await self._has_text_marker(page, PROFILE_READY_TEXT_MARKERS):
                 return "profile"
+
+            # ================================
+            # TempMail.Plus 当前偶发“确认页元素残留，但主页面已切回首页壳”
+            # 目的: 不把这种混合态误判成确认页超时，让后续继续走验证码链路
+            # 边界: 仅对 tempmail.plus 生效，其他站点继续沿用原有状态机
+            # ================================
+            if await self._is_tempmail_plus_home_state(page):
+                return "confirmation"
 
             await asyncio.sleep(CONFIRMATION_POLL_INTERVAL_SECONDS)
 
@@ -1167,7 +1197,7 @@ class RegistrationService:
             return base_context
         return "context_capture_empty"
 
-    async def _wait_for_profile_state(self, page: Page) -> bool:
+    async def _wait_for_profile_state(self, page: Page) -> str | None:
         # ================================
         # 资料页不是所有时候都会在验证码输入后立刻稳定出现
         # 目的: 给“确认页 -> 资料页”的过渡留出更长窗口，并优先识别弱中间态
@@ -1175,9 +1205,17 @@ class RegistrationService:
         # ================================
         for _ in range(PROFILE_READY_WAIT_SECONDS):
             if await self._has_visible_selector(page, PROFILE_READY_SELECTORS):
-                return True
+                return "profile"
             if await self._has_text_marker(page, PROFILE_READY_TEXT_MARKERS):
-                return True
+                return "profile"
+
+            # ================================
+            # TempMail.Plus 验证码提交后，偶发直接回到已登录首页而不再出现生日资料页
+            # 目的: 识别“资料页缺席但注册已完成”的分支，避免继续误判为 fill_profile 失败
+            # 边界: 仅对 tempmail.plus 生效，且只在 fill_profile 阶段使用
+            # ================================
+            if await self._is_tempmail_plus_home_state(page):
+                return "home"
 
             # 仍停留在验证码页时继续等待，不立即把它误判成资料页失败
             if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
@@ -1192,7 +1230,7 @@ class RegistrationService:
 
             await asyncio.sleep(1)
 
-        return False
+        return None
 
     async def _fill_verification_code(
         self,
@@ -1223,10 +1261,16 @@ class RegistrationService:
         self,
         page: Page,
         result: RegistrationResult,
-    ) -> tuple[bool, tuple[int, str, int] | None]:
+    ) -> tuple[bool, tuple[int, str, int] | None, bool]:
         self._mark_step(result, RegistrationStep.FILL_PROFILE)
-        profile_ready = await self._wait_for_profile_state(page)
-        if not profile_ready:
+        profile_state = await self._wait_for_profile_state(page)
+        if profile_state == "home":
+            logger.info(
+                f"[线程{self.thread_id}] TempMail.Plus 验证后已回到首页壳，跳过生日资料页"
+            )
+            return True, None, True
+
+        if profile_state != "profile":
             await self.save_screenshot(page, "error_fill_profile")
             failure_context = await self._capture_profile_context(page)
             self._fail_step(
@@ -1235,12 +1279,22 @@ class RegistrationService:
                 "生日资料表单未出现",
                 failure_context=failure_context,
             )
-            return False, None
+            return False, None, False
         birth_date = await self._fill_birth_date(page)
-        return True, birth_date
+        return True, birth_date, False
 
     async def _complete_registration(self, page: Page, result: RegistrationResult) -> bool:
         self._mark_step(result, RegistrationStep.COMPLETE_REGISTRATION)
+
+        # ================================
+        # TempMail.Plus 当前偶发“验证码后直接落到已登录首页”
+        # 目的: 已处于成功态时直接放行，避免再去点击不存在的 Next 按钮
+        # 边界: 仅对 tempmail.plus 生效，不改变其他站点的资料页提交流程
+        # ================================
+        if await self._is_tempmail_plus_home_state(page):
+            logger.info(f"[线程{self.thread_id}] TempMail.Plus 已处于成功首页，跳过 Next 提交")
+            return True
+
         clicked = await self._click_first_visible(
             page,
             NEXT_BUTTON_SELECTORS,
@@ -1370,13 +1424,16 @@ class RegistrationService:
             if not profile_already_ready:
                 if not await self._fill_verification_code(main_page, email_page, result):
                     return result
-            profile_ready, birth_date = await self._complete_profile(main_page, result)
+            profile_ready, birth_date, registration_already_complete = await self._complete_profile(
+                main_page,
+                result,
+            )
             if not profile_ready:
                 result.email = self.temp_email_service.temp_email
                 result.password = self.temp_email_service.password
                 self._log_result_summary(result, birth_date)
                 return result
-            if not await self._complete_registration(main_page, result):
+            if not registration_already_complete and not await self._complete_registration(main_page, result):
                 result.email = self.temp_email_service.temp_email
                 result.password = self.temp_email_service.password
                 self._log_result_summary(result, birth_date)
