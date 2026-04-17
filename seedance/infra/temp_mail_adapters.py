@@ -163,6 +163,24 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
             "confirm",
         ),
     ),
+    "mailticking.com": TempMailAdapter(
+        name="mailticking.com",
+        ready_selectors=(
+            "#active-mail",
+            "#refresh-button",
+            "#message-list",
+        ),
+        email_value_selectors=(),
+        email_text_selectors=(),
+        email_attribute_selectors=(),
+        verification_text_markers=(
+            "verification code",
+            "code is",
+            "dreamina",
+            "capcut",
+            "confirm",
+        ),
+    ),
     "internxt": TempMailAdapter(
         name="internxt",
         ready_selectors=(

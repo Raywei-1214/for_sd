@@ -99,6 +99,27 @@ class TempEmailService:
         except Exception:
             return
 
+    async def _refresh_mailticking_inbox(self, page: Page) -> None:
+        # ================================
+        # MailTicking 的收件箱刷新入口固定挂在左侧 Refresh 按钮
+        # 目的: 优先命中站点自己的收件箱刷新链路，避免整页 reload 打断当前邮箱态
+        # 边界: 仅对 mailticking.com 生效，刷新失败时交给通用刷新逻辑继续兜底
+        # ================================
+        refresh_selectors = (
+            "#refresh-button",
+            "a#refresh-button",
+            "a:has-text('Refresh')",
+        )
+        for selector in refresh_selectors:
+            try:
+                refresh_button = page.locator(selector).first
+                if await refresh_button.count() and await refresh_button.is_visible():
+                    await refresh_button.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
     async def _refresh_internxt_inbox(self, page: Page) -> None:
         try:
             refresh_button = page.locator("button:has-text('Refresh')").first
@@ -116,6 +137,10 @@ class TempEmailService:
         # ================================
         if adapter.name == "mail.chatgpt.org.uk":
             await self._refresh_gptmail_inbox(page)
+            return True
+
+        if adapter.name == "mailticking.com":
+            await self._refresh_mailticking_inbox(page)
             return True
 
         if adapter.name == "internxt":
@@ -292,6 +317,46 @@ class TempEmailService:
             except Exception:
                 continue
 
+    async def _open_mailticking_mail_preview(self, page: Page) -> None:
+        # ================================
+        # MailTicking 的邮件正文需要先点列表链接进入 /mail/view/...
+        # 目的: 优先点开 Dreamina / CapCut / verification 相关邮件，帮助验证码进入正文页
+        # 边界: 只做轻量点击；关键词未命中时再退回最新一封邮件
+        # ================================
+        preview_selectors = (
+            "#message-list a:has-text('Dreamina')",
+            "#message-list a:has-text('CapCut')",
+            "#message-list a:has-text('verification')",
+            "#message-list a:has-text('Verification')",
+            "#message-list a:has-text('confirm')",
+            "#message-list a:has-text('Confirm')",
+            "#message-list a:has-text('code')",
+            "#message-list a:has-text('Code')",
+        )
+        for selector in preview_selectors:
+            try:
+                preview = page.locator(selector).first
+                if await preview.count() and await preview.is_visible():
+                    await preview.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
+        fallback_selectors = (
+            "#message-list a",
+            "table tbody#message-list a",
+        )
+        for selector in fallback_selectors:
+            try:
+                preview = page.locator(selector).first
+                if await preview.count() and await preview.is_visible():
+                    await preview.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
     def _pick_provider(self) -> dict:
         if self.specified_email:
             return next(
@@ -403,6 +468,10 @@ class TempEmailService:
             gptmail_email = await self._extract_gptmail_email(page)
             if gptmail_email:
                 return gptmail_email
+        if adapter.name == "mailticking.com":
+            mailticking_email = await self._extract_mailticking_email(page)
+            if mailticking_email:
+                return mailticking_email
         if adapter.name == "internxt":
             internxt_email = await self._extract_internxt_email(page)
             if internxt_email:
@@ -572,6 +641,37 @@ class TempEmailService:
             match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", candidate_source)
             if match and self._is_valid_email(match.group(0)):
                 return match.group(0)
+
+        return None
+
+    async def _extract_mailticking_email(self, page: Page) -> str | None:
+        # ================================
+        # MailTicking 会把真实邮箱写在 active-mail 输入框和复制属性里
+        # 目的: 优先读取收件箱主输入框，避免把登录弹窗里的邮箱输入框误判成临时邮箱
+        # 边界: 只依赖收件箱主区域和复制属性，不扫描营销说明文本
+        # ================================
+        candidate_selectors = (
+            ("#active-mail", "value"),
+            ("#active-mail", "data-clipboard-text"),
+            ("input#active-mail", "value"),
+            ("[data-clipboard-text*='@']", "data-clipboard-text"),
+        )
+
+        for selector, attribute_name in candidate_selectors:
+            try:
+                node = page.locator(selector).first
+                if not await node.count():
+                    continue
+
+                if attribute_name == "value":
+                    candidate = (await node.input_value()).strip()
+                else:
+                    candidate = (await node.get_attribute(attribute_name) or "").strip()
+
+                if self._is_valid_email(candidate):
+                    return candidate
+            except Exception:
+                continue
 
         return None
 
@@ -803,6 +903,8 @@ class TempEmailService:
 
                     if adapter.name == "internxt":
                         await self._open_internxt_mail_preview(email_page)
+                    elif adapter.name == "mailticking.com" and attempt >= 1:
+                        await self._open_mailticking_mail_preview(email_page)
                     elif adapter.name == "mail.chatgpt.org.uk" and attempt >= 1:
                         await self._open_gptmail_mail_preview(email_page)
                     elif adapter.name == "10minutemail.net" and attempt >= 1:

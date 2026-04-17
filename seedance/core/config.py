@@ -17,6 +17,7 @@ TEMP_EMAIL_PROVIDERS = [
     {"name": "mail.tm", "url": "https://mail.tm/zh/"},
     {"name": "tempmail.lol", "url": "https://tempmail.lol/"},
     {"name": "mail.chatgpt.org.uk", "url": "https://mail.chatgpt.org.uk/"},
+    {"name": "mailticking.com", "url": "https://app.mailticking.com/en"},
     {"name": "internxt", "url": "https://internxt.com/temporary-email"},
     {"name": "tempemail.cc", "url": "https://www.tempemail.cc/fr"},
     # ================================
