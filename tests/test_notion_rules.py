@@ -64,6 +64,34 @@ class ReadySignalPage:
         return []
 
 
+class SequencedReadySignalPage:
+    def __init__(self, context_texts: list[str], visible: bool) -> None:
+        self._context_texts = context_texts
+        self._index = 0
+        self.visible = visible
+
+    @property
+    def context_text(self) -> str:
+        value = self._context_texts[min(self._index, len(self._context_texts) - 1)]
+        self._index += 1
+        return value
+
+    async def query_selector_all(self, _selector: str):
+        return []
+
+
+class ProbeSnapshotService(RegistrationService):
+    def __init__(self, ready: bool, context_text: str) -> None:
+        self._ready = ready
+        self._context_text = context_text
+
+    async def _wait_for_probe_workspace_ready(self, page):  # type: ignore[override]
+        return self._ready
+
+    async def _capture_page_context(self, page):  # type: ignore[override]
+        return self._context_text
+
+
 class NotionRulesTests(unittest.TestCase):
     def _make_result(self, **overrides) -> RegistrationResult:
         payload = {
@@ -227,6 +255,41 @@ class NotionRulesTests(unittest.TestCase):
         ready = asyncio.run(RegistrationService._wait_for_probe_workspace_ready(service, page))
 
         self.assertTrue(ready)
+
+    def test_wait_for_probe_workspace_ready_waits_for_signin_shell_to_hydrate(self) -> None:
+        service = ReadySignalService()
+        page = SequencedReadySignalPage(
+            context_texts=[
+                "url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets Canvas Sign in Start Creating With AI Agent",
+                "url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets Canvas 0 Upgrade Start Creating With AI Agent AI Video",
+            ],
+            visible=True,
+        )
+
+        ready = asyncio.run(RegistrationService._wait_for_probe_workspace_ready(service, page))
+
+        self.assertTrue(ready)
+
+    def test_collect_probe_snapshot_refuses_partial_signal_when_workspace_not_ready(self) -> None:
+        service = ProbeSnapshotService(
+            ready=False,
+            context_text="url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets Canvas Sign in Start Creating With AI Agent",
+        )
+
+        snapshot = asyncio.run(
+            RegistrationService._collect_probe_snapshot(
+                service,
+                page=object(),
+                navigation_attempt=1,
+                balance_samples=[],
+                generate_button_samples=[],
+            )
+        )
+
+        self.assertIsNone(snapshot["seedance2_cost"])
+        self.assertIsNone(snapshot["seedance_credits"])
+        self.assertFalse(snapshot["model_dropdown_found"])
+        self.assertIn("seedance2_cost=<empty>", str(snapshot["probe_context"]))
 
     def test_numeric_probe_signal_requires_credits_or_cost(self) -> None:
         service = RegistrationService.__new__(RegistrationService)

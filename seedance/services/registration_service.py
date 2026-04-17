@@ -291,13 +291,23 @@ class RegistrationService:
         return " | ".join(parts)
 
     def _is_probe_context_blocked(self, page_context: str | None) -> bool:
+        return self._is_probe_context_soft_blocked(page_context) or self._is_probe_context_hard_blocked(
+            page_context
+        )
+
+    def _is_probe_context_soft_blocked(self, page_context: str | None) -> bool:
         if not page_context:
             return False
 
         context_text = page_context.lower()
-        return any(marker in context_text for marker in PROBE_BLOCKED_TEXT_MARKERS) or any(
-            marker in context_text for marker in PROBE_BLOCKED_URL_MARKERS
-        )
+        return any(marker in context_text for marker in PROBE_BLOCKED_TEXT_MARKERS)
+
+    def _is_probe_context_hard_blocked(self, page_context: str | None) -> bool:
+        if not page_context:
+            return False
+
+        context_text = page_context.lower()
+        return any(marker in context_text for marker in PROBE_BLOCKED_URL_MARKERS)
 
     def _is_video_probe_context(self, page_context: str | None) -> bool:
         if not page_context:
@@ -350,12 +360,22 @@ class RegistrationService:
     async def _wait_for_probe_workspace_ready(self, page: Page) -> bool:
         for _ in range(PROBE_READY_WAIT_ATTEMPTS):
             page_context = await self._capture_page_context(page)
-            if self._is_probe_context_blocked(page_context):
+            if self._is_probe_context_hard_blocked(page_context):
                 return False
             if not self._is_video_probe_context(page_context):
                 return False
-            if await self._has_probe_workspace_ready_signal(page):
+            workspace_ready = await self._has_probe_workspace_ready_signal(page)
+            soft_blocked = self._is_probe_context_soft_blocked(page_context)
+            if workspace_ready and not soft_blocked:
                 return True
+            # ================================
+            # Sign in 壳子属于“半 ready”状态
+            # 目的: 先给前端一次短暂水合时间，再决定是否需要页面内引导
+            # 边界: 这里只做同页等待，不增加额外导航
+            # ================================
+            if soft_blocked:
+                await asyncio.sleep(PROBE_READY_WAIT_SECONDS)
+                continue
             if not self._needs_probe_workspace_nudge(
                 page_context=page_context,
                 model_dropdown_found=False,
@@ -700,13 +720,40 @@ class RegistrationService:
         balance_samples: list[str],
         generate_button_samples: list[str],
     ) -> dict[str, object]:
-        await self._wait_for_probe_workspace_ready(page)
+        workspace_ready = await self._wait_for_probe_workspace_ready(page)
         current_seedance2_cost = None
         current_seedance_credits = None
         current_balance_samples: list[str] = []
         current_generate_button_samples: list[str] = []
         current_model_dropdown_found = False
         current_model_fast_selected = False
+
+        # ================================
+        # 工作区未 ready 时禁止继续抓取伪信号
+        # 目的: 避免把首页壳子的 cost=0 / dropdown 当成真实积分依据
+        # 边界: 这里只返回空采样，让外层决定是否引导或重试
+        # ================================
+        if not workspace_ready:
+            page_context = await self._capture_page_context(page)
+            probe_context = self._format_probe_context(
+                page_context=page_context,
+                seedance_credits=current_seedance_credits,
+                seedance2_cost=current_seedance2_cost,
+                navigation_attempt=navigation_attempt,
+                model_dropdown_found=current_model_dropdown_found,
+                model_fast_selected=current_model_fast_selected,
+                balance_samples=current_balance_samples,
+                generate_button_samples=current_generate_button_samples,
+            )
+            return {
+                "seedance2_cost": current_seedance2_cost,
+                "seedance_credits": current_seedance_credits,
+                "model_dropdown_found": current_model_dropdown_found,
+                "model_fast_selected": current_model_fast_selected,
+                "generate_button_samples": current_generate_button_samples,
+                "probe_context": probe_context,
+                "page_context": page_context,
+            }
 
         for _ in range(PROBE_RETRY_COUNT):
             try:
