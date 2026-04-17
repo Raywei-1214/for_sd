@@ -159,6 +159,7 @@
     - `wait_confirmation` 识别“确认元素残留，但首页壳已出现”的混合态
     - `fill_profile` 识别“验证码后直接回首页，不再出现生日资料页”的分支
     - `complete_registration` 在已进入成功首页时直接放行，不再点击 `Next`
+    - 首页壳当前只作为弱信号使用，必须等 `sessionid / faceu-commerce-user-info / 足量 cookie` 落地后，才允许判定注册已完成
   - 上述分支当前不复用到其他邮箱站点：
     - 目的: 避免把 `tempmail.plus` 的页面切换特性误扩散到其他已稳定站点
     - 边界: 其他 provider 继续沿用原有公共注册状态机

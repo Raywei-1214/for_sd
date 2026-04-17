@@ -1066,7 +1066,7 @@ class RegistrationService:
     def _is_tempmail_plus_provider(self) -> bool:
         return self.temp_email_service.provider_name == "tempmail.plus"
 
-    async def _is_tempmail_plus_home_state(self, page: Page) -> bool:
+    async def _is_tempmail_plus_home_shell(self, page: Page) -> bool:
         if not self._is_tempmail_plus_provider():
             return False
 
@@ -1079,6 +1079,48 @@ class RegistrationService:
         if await self._has_text_marker(page, SUCCESS_READY_TEXT_MARKERS):
             return True
         return False
+
+    async def _wait_for_tempmail_plus_login_ready(
+        self,
+        page: Page,
+        attempts: int = 5,
+        interval_seconds: int = 1,
+    ) -> bool:
+        # ================================
+        # TempMail.Plus 的首页壳不等于注册已完成
+        # 目的: 只有真正登录态 cookie 已落地时，才允许走 provider 专属首页成功旁路
+        # 边界: 仅对 tempmail.plus 生效；其他站点不额外依赖 cookie 集合特征
+        # ================================
+        if not self._is_tempmail_plus_provider():
+            return False
+
+        for attempt in range(attempts):
+            try:
+                cookies = await page.context.cookies()
+            except Exception:
+                cookies = []
+
+            cookie_names = {
+                str(cookie.get("name", "")).lower()
+                for cookie in cookies
+                if cookie.get("name")
+            }
+            if (
+                "sessionid" in cookie_names
+                or "faceu-commerce-user-info" in cookie_names
+                or len(cookies) >= 25
+            ):
+                return True
+
+            if attempt < attempts - 1:
+                await asyncio.sleep(interval_seconds)
+
+        return False
+
+    async def _is_tempmail_plus_home_state(self, page: Page) -> bool:
+        if not await self._is_tempmail_plus_home_shell(page):
+            return False
+        return await self._wait_for_tempmail_plus_login_ready(page, attempts=3, interval_seconds=1)
 
     async def _wait_for_post_submit_state(self, page: Page) -> str | None:
         for _ in range(CONFIRMATION_POLL_ATTEMPTS):
@@ -1214,8 +1256,15 @@ class RegistrationService:
             # 目的: 识别“资料页缺席但注册已完成”的分支，避免继续误判为 fill_profile 失败
             # 边界: 仅对 tempmail.plus 生效，且只在 fill_profile 阶段使用
             # ================================
-            if await self._is_tempmail_plus_home_state(page):
-                return "home"
+            if await self._is_tempmail_plus_home_shell(page):
+                if await self._wait_for_tempmail_plus_login_ready(
+                    page,
+                    attempts=3,
+                    interval_seconds=1,
+                ):
+                    return "home"
+                await asyncio.sleep(1)
+                continue
 
             # 仍停留在验证码页时继续等待，不立即把它误判成资料页失败
             if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
@@ -1291,9 +1340,14 @@ class RegistrationService:
         # 目的: 已处于成功态时直接放行，避免再去点击不存在的 Next 按钮
         # 边界: 仅对 tempmail.plus 生效，不改变其他站点的资料页提交流程
         # ================================
-        if await self._is_tempmail_plus_home_state(page):
-            logger.info(f"[线程{self.thread_id}] TempMail.Plus 已处于成功首页，跳过 Next 提交")
-            return True
+        if await self._is_tempmail_plus_home_shell(page):
+            if await self._wait_for_tempmail_plus_login_ready(
+                page,
+                attempts=4,
+                interval_seconds=1,
+            ):
+                logger.info(f"[线程{self.thread_id}] TempMail.Plus 已处于成功首页，跳过 Next 提交")
+                return True
 
         clicked = await self._click_first_visible(
             page,
@@ -1301,6 +1355,15 @@ class RegistrationService:
             require_enabled=True,
         )
         if not clicked:
+            if self._is_tempmail_plus_provider() and await self._is_tempmail_plus_home_shell(page):
+                failure_context = await self._capture_confirmation_context(page)
+                self._fail_step(
+                    result,
+                    RegistrationStep.COMPLETE_REGISTRATION,
+                    "TempMail.Plus 已回首页壳，但登录态 cookie 未落地",
+                    failure_context=failure_context,
+                )
+                return False
             self._fail_step(result, RegistrationStep.COMPLETE_REGISTRATION, "Next 按钮不可点击")
             return False
 
