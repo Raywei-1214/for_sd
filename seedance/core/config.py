@@ -222,6 +222,8 @@ PROBE_START_CREATING_SELECTORS = (
     "a:has-text('Start Creating')",
     "div[role='button']:has-text('Start Creating')",
 )
+PROBE_READY_WAIT_ATTEMPTS = 3
+PROBE_READY_WAIT_SECONDS = 1
 PROBE_WORKSPACE_ENTRY_WAIT_SECONDS = 2
 PROBE_GENERATE_BUTTON_SELECTORS = (
     "div[class*='commercial-button']",

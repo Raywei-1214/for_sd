@@ -42,6 +42,8 @@ from seedance.core.config import (
     PROBE_MODEL_OPTION_SELECTOR,
     PROBE_MODEL_OPTION_TEXT,
     PROBE_NAVIGATION_RETRY_COUNT,
+    PROBE_READY_WAIT_ATTEMPTS,
+    PROBE_READY_WAIT_SECONDS,
     PROBE_REQUIRED_URL_MARKERS,
     PROBE_RETRY_COUNT,
     PROBE_START_CREATING_SELECTORS,
@@ -326,6 +328,43 @@ class RegistrationService:
 
         context_text = page_context.lower()
         return "explore create assets" in context_text or "start creating with ai agent" in context_text
+
+    async def _has_probe_workspace_ready_signal(self, page: Page) -> bool:
+        if await self._has_visible_selector(page, PROBE_BALANCE_SELECTORS):
+            return True
+
+        if await self._has_visible_selector(page, PROBE_GENERATE_BUTTON_SELECTORS):
+            return True
+
+        try:
+            dropdown_nodes = await page.query_selector_all(PROBE_MODEL_DROPDOWN_SELECTOR)
+            for node in dropdown_nodes:
+                text = await node.text_content()
+                if PROBE_MODEL_DROPDOWN_TEXT in (text or "") and await node.is_visible():
+                    return True
+        except Exception:
+            return False
+
+        return False
+
+    async def _wait_for_probe_workspace_ready(self, page: Page) -> bool:
+        for _ in range(PROBE_READY_WAIT_ATTEMPTS):
+            page_context = await self._capture_page_context(page)
+            if self._is_probe_context_blocked(page_context):
+                return False
+            if not self._is_video_probe_context(page_context):
+                return False
+            if await self._has_probe_workspace_ready_signal(page):
+                return True
+            if not self._needs_probe_workspace_nudge(
+                page_context=page_context,
+                model_dropdown_found=False,
+                generate_button_samples=[],
+                has_numeric_signal=False,
+            ):
+                return False
+            await asyncio.sleep(PROBE_READY_WAIT_SECONDS)
+        return False
 
     async def _dismiss_probe_blockers(self, page: Page) -> None:
         # ================================
@@ -661,6 +700,7 @@ class RegistrationService:
         balance_samples: list[str],
         generate_button_samples: list[str],
     ) -> dict[str, object]:
+        await self._wait_for_probe_workspace_ready(page)
         current_seedance2_cost = None
         current_seedance_credits = None
         current_balance_samples: list[str] = []

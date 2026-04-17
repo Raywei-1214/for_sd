@@ -44,6 +44,26 @@ class FakePage:
         return None
 
 
+class ReadySignalService(RegistrationService):
+    def __init__(self) -> None:
+        pass
+
+    async def _capture_page_context(self, page):  # type: ignore[override]
+        return page.context_text
+
+    async def _has_visible_selector(self, page, selectors):  # type: ignore[override]
+        return page.visible
+
+
+class ReadySignalPage:
+    def __init__(self, context_text: str, visible: bool) -> None:
+        self.context_text = context_text
+        self.visible = visible
+
+    async def query_selector_all(self, _selector: str):
+        return []
+
+
 class NotionRulesTests(unittest.TestCase):
     def _make_result(self, **overrides) -> RegistrationResult:
         payload = {
@@ -196,6 +216,17 @@ class NotionRulesTests(unittest.TestCase):
                 has_numeric_signal=True,
             )
         )
+
+    def test_wait_for_probe_workspace_ready_accepts_half_ready_shell_after_signal(self) -> None:
+        service = ReadySignalService()
+        page = ReadySignalPage(
+            context_text="url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets",
+            visible=True,
+        )
+
+        ready = asyncio.run(RegistrationService._wait_for_probe_workspace_ready(service, page))
+
+        self.assertTrue(ready)
 
     def test_numeric_probe_signal_requires_credits_or_cost(self) -> None:
         service = RegistrationService.__new__(RegistrationService)
