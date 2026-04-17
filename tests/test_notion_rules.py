@@ -159,6 +159,22 @@ class NotionRulesTests(unittest.TestCase):
             )
         )
 
+    def test_video_probe_context_requires_video_home_url(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+
+        self.assertTrue(
+            RegistrationService._is_video_probe_context(
+                service,
+                "url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets Canvas 0 Upgrade",
+            )
+        )
+        self.assertFalse(
+            RegistrationService._is_video_probe_context(
+                service,
+                "url=https://dreamina.capcut.com/ai-tool/generate?enter_from=ai_feature&from_page=explore&ai_feature_name=omniReference | body=Explore Create Assets Canvas 0 Upgrade",
+            )
+        )
+
     def test_numeric_probe_signal_requires_credits_or_cost(self) -> None:
         service = RegistrationService.__new__(RegistrationService)
 

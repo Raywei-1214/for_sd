@@ -42,6 +42,7 @@ from seedance.core.config import (
     PROBE_MODEL_OPTION_SELECTOR,
     PROBE_MODEL_OPTION_TEXT,
     PROBE_NAVIGATION_RETRY_COUNT,
+    PROBE_REQUIRED_URL_MARKERS,
     PROBE_RETRY_COUNT,
     PROBE_START_CREATING_SELECTORS,
     PROBE_VIDEO_ENTRY_SELECTORS,
@@ -296,6 +297,13 @@ class RegistrationService:
             marker in context_text for marker in PROBE_BLOCKED_URL_MARKERS
         )
 
+    def _is_video_probe_context(self, page_context: str | None) -> bool:
+        if not page_context:
+            return False
+
+        context_text = page_context.lower()
+        return all(marker in context_text for marker in PROBE_REQUIRED_URL_MARKERS)
+
     def _has_numeric_probe_signal(
         self,
         seedance_credits: str | None,
@@ -326,6 +334,18 @@ class RegistrationService:
         # ================================
         action_taken = False
 
+        video_entry_clicked = await self._click_first_visible(
+            page,
+            PROBE_VIDEO_ENTRY_SELECTORS,
+            timeout=3000,
+        )
+        if not video_entry_clicked:
+            video_entry_clicked = await self._click_text_locator(page, "AI Video", timeout=3000)
+        if video_entry_clicked:
+            action_taken = True
+            await asyncio.sleep(PROBE_WORKSPACE_ENTRY_WAIT_SECONDS)
+            await self._dismiss_probe_blockers(page)
+
         start_creating_clicked = await self._click_first_visible(
             page,
             PROBE_START_CREATING_SELECTORS,
@@ -342,19 +362,17 @@ class RegistrationService:
             await asyncio.sleep(PROBE_WORKSPACE_ENTRY_WAIT_SECONDS)
             await self._dismiss_probe_blockers(page)
 
-        video_entry_clicked = await self._click_first_visible(
-            page,
-            PROBE_VIDEO_ENTRY_SELECTORS,
-            timeout=3000,
-        )
-        if not video_entry_clicked:
-            video_entry_clicked = await self._click_text_locator(page, "AI Video", timeout=3000)
-        if video_entry_clicked:
-            action_taken = True
-            await asyncio.sleep(PROBE_WORKSPACE_ENTRY_WAIT_SECONDS)
-            await self._dismiss_probe_blockers(page)
-
         return action_taken
+
+    async def _reset_probe_to_video_workspace(self, page: Page) -> None:
+        # ================================
+        # 当 URL 已经偏离视频工作区时，直接拉回固定视频入口
+        # 目的: 阻断 omniReference / agentic / generate 旁路继续污染 probe
+        # 边界: 每次导航内最多执行一次，不把外网请求放大成无界重试
+        # ================================
+        await page.goto(DREAMINA_VIDEO_URL, timeout=60000)
+        await asyncio.sleep(3)
+        await self._dismiss_probe_blockers(page)
 
     async def save_screenshot(self, page: Page, name: str) -> None:
         if not self.debug_mode:
@@ -779,6 +797,27 @@ class RegistrationService:
                 current_seedance_credits,
                 current_seedance2_cost,
             )
+            probe_is_video_context = self._is_video_probe_context(page_context)
+            if not probe_is_video_context:
+                await self._reset_probe_to_video_workspace(page)
+                probe_snapshot = await self._collect_probe_snapshot(
+                    page=page,
+                    navigation_attempt=navigation_attempt,
+                    balance_samples=balance_samples,
+                    generate_button_samples=generate_button_samples,
+                )
+                probe_context = str(probe_snapshot["probe_context"])
+                page_context = probe_snapshot["page_context"]
+                current_seedance2_cost = probe_snapshot["seedance2_cost"]
+                current_seedance_credits = probe_snapshot["seedance_credits"]
+                current_model_dropdown_found = bool(probe_snapshot["model_dropdown_found"])
+                current_model_fast_selected = bool(probe_snapshot["model_fast_selected"])
+                probe_context_blocked = self._is_probe_context_blocked(page_context)
+                probe_has_numeric_signal = self._has_numeric_probe_signal(
+                    current_seedance_credits,
+                    current_seedance2_cost,
+                )
+                probe_is_video_context = self._is_video_probe_context(page_context)
             if probe_context_blocked:
                 workspace_action_taken = await self._enter_video_probe_workspace(page)
                 if workspace_action_taken:
@@ -802,9 +841,10 @@ class RegistrationService:
                         current_seedance_credits,
                         current_seedance2_cost,
                     )
+                    probe_is_video_context = self._is_video_probe_context(page_context)
 
             final_probe_context = probe_context
-            if probe_has_numeric_signal and not probe_context_blocked:
+            if probe_has_numeric_signal and not probe_context_blocked and probe_is_video_context:
                 seedance2_cost = current_seedance2_cost
                 seedance_credits = current_seedance_credits
                 model_dropdown_found = current_model_dropdown_found

@@ -203,6 +203,12 @@ PROBE_BLOCKED_TEXT_MARKERS = (
 PROBE_BLOCKED_URL_MARKERS = (
     "/ai-tool/generate",
     "type=agentic",
+    "ai_feature_name=omnireference",
+)
+PROBE_REQUIRED_URL_MARKERS = (
+    "/ai-tool/home",
+    "type=video",
+    "workspace=0",
 )
 PROBE_VIDEO_ENTRY_SELECTORS = (
     "a[href*='type=video']",
