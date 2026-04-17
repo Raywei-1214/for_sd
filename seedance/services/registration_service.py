@@ -42,6 +42,9 @@ from seedance.core.config import (
     PROBE_MODEL_OPTION_TEXT,
     PROBE_NAVIGATION_RETRY_COUNT,
     PROBE_RETRY_COUNT,
+    PROBE_START_CREATING_SELECTORS,
+    PROBE_VIDEO_ENTRY_SELECTORS,
+    PROBE_WORKSPACE_ENTRY_WAIT_SECONDS,
     REGISTRATION_RESULT_POLL_ATTEMPTS,
     REGISTRATION_RESULT_POLL_INTERVAL_SECONDS,
     SCREENSHOT_DIR,
@@ -290,6 +293,13 @@ class RegistrationService:
         context_text = page_context.lower()
         return any(marker in context_text for marker in PROBE_BLOCKED_TEXT_MARKERS)
 
+    def _has_numeric_probe_signal(
+        self,
+        seedance_credits: str | None,
+        seedance2_cost: str | None,
+    ) -> bool:
+        return bool(seedance_credits is not None or seedance2_cost is not None)
+
     async def _dismiss_probe_blockers(self, page: Page) -> None:
         # ================================
         # 探针页会被横幅/弹层/半登录态挡住
@@ -304,6 +314,36 @@ class RegistrationService:
                 break
             await asyncio.sleep(0.5)
         await self.close_popups(page, max_attempts=5)
+
+    async def _enter_video_probe_workspace(self, page: Page) -> bool:
+        # ================================
+        # 只有 probe 落在首页壳子时，才执行一次轻量工作区引导
+        # 目的: 尽量通过页面内点击进入视频工作区，避免反复 goto 增加流量
+        # 边界: 这里只做 Start Creating / AI Video 两类入口点击，不重复注册链路动作
+        # ================================
+        action_taken = False
+
+        start_creating_clicked = await self._click_first_visible(
+            page,
+            PROBE_START_CREATING_SELECTORS,
+            timeout=3000,
+        )
+        if start_creating_clicked:
+            action_taken = True
+            await asyncio.sleep(PROBE_WORKSPACE_ENTRY_WAIT_SECONDS)
+            await self._dismiss_probe_blockers(page)
+
+        video_entry_clicked = await self._click_first_visible(
+            page,
+            PROBE_VIDEO_ENTRY_SELECTORS,
+            timeout=3000,
+        )
+        if video_entry_clicked:
+            action_taken = True
+            await asyncio.sleep(PROBE_WORKSPACE_ENTRY_WAIT_SECONDS)
+            await self._dismiss_probe_blockers(page)
+
+        return action_taken
 
     async def save_screenshot(self, page: Page, name: str) -> None:
         if not self.debug_mode:
@@ -586,6 +626,13 @@ class RegistrationService:
             await page.goto(DREAMINA_VIDEO_URL, timeout=60000)
             await asyncio.sleep(5)
             await self._dismiss_probe_blockers(page)
+            initial_page_context = await self._capture_page_context(page)
+            if self._is_probe_context_blocked(initial_page_context):
+                workspace_action_taken = await self._enter_video_probe_workspace(page)
+                if workspace_action_taken:
+                    logger.info(
+                        f"[线程{self.thread_id}] 探针页命中首页壳子，已执行视频工作区引导"
+                    )
 
             # ================================
             # 探针页必须先进入“真工作区”，否则读取到的 0 或空值都不可信
@@ -677,13 +724,11 @@ class RegistrationService:
             final_probe_context = probe_context
 
             probe_context_blocked = self._is_probe_context_blocked(page_context)
-            probe_has_usable_signal = bool(
-                current_seedance2_cost is not None
-                or current_seedance_credits is not None
-                or current_model_dropdown_found
-                or current_generate_button_samples
+            probe_has_numeric_signal = self._has_numeric_probe_signal(
+                current_seedance_credits,
+                current_seedance2_cost,
             )
-            if probe_has_usable_signal and not probe_context_blocked:
+            if probe_has_numeric_signal and not probe_context_blocked:
                 seedance2_cost = current_seedance2_cost
                 seedance_credits = current_seedance_credits
                 model_dropdown_found = current_model_dropdown_found

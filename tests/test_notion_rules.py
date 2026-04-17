@@ -153,6 +153,13 @@ class NotionRulesTests(unittest.TestCase):
             )
         )
 
+    def test_numeric_probe_signal_requires_credits_or_cost(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+
+        self.assertFalse(RegistrationService._has_numeric_probe_signal(service, None, None))
+        self.assertTrue(RegistrationService._has_numeric_probe_signal(service, "0", None))
+        self.assertTrue(RegistrationService._has_numeric_probe_signal(service, None, "70"))
+
 
 if __name__ == "__main__":
     unittest.main()

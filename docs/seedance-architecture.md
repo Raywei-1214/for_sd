@@ -22,6 +22,7 @@
   - 负责目录扫描、视频时长预检、去水印串行调度与 JSON 运行报告输出。
 - `seedance/services/registration_service.py`
   - 负责 Dreamina 注册主流程、积分探测、`sessionid` 抓取。
+  - `probe` 当前会先识别首页壳子，再按需执行一次 `Start Creating / AI Video` 轻量引导；只有采到数值型 `credits/cost` 才接受结果。
 - `seedance/services/watermark_service.py`
   - 负责单视频去水印调用、异常归一与结果对象构造。
 - `seedance/services/email_service.py`
@@ -250,6 +251,18 @@
     - `context_capture_empty`
 - `wait_confirmation` 当前已改为强制页面采样：
   - 即使未命中额外状态标记，也会至少写入 `context_capture_empty`，避免报告里继续出现完全空白上下文
+- `probe_context` 当前会显式记录：
+  - `probe_navigation_attempt`
+  - `seedance_credits`
+  - `seedance2_cost`
+  - `model_dropdown_found`
+  - `model_fast_selected`
+  - `balance_samples`
+  - `generate_button_samples`
+- `probe` 当前只接受“非首页壳子 + 至少采到一个数值型 credits/cost”的结果：
+  - 如果还停在 `Sign in / Creative Partner Program / AI Agent Auto / 1080P banner`
+  - 或者页面里只有按钮文本、没有采到数值
+  - 都会继续重试，而不是把空值直接当成可用采样
 
 ## 当前账号输出策略
 

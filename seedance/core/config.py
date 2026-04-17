@@ -195,6 +195,19 @@ PROBE_BLOCKED_TEXT_MARKERS = (
     "see the prompt guide",
     "1080p is now available",
 )
+PROBE_VIDEO_ENTRY_SELECTORS = (
+    "a[href*='type=video']",
+    "button:has-text('AI Video')",
+    "a:has-text('AI Video')",
+    "div[role='tab']:has-text('AI Video')",
+    "div[role='button']:has-text('AI Video')",
+)
+PROBE_START_CREATING_SELECTORS = (
+    "button:has-text('Start Creating')",
+    "a:has-text('Start Creating')",
+    "div[role='button']:has-text('Start Creating')",
+)
+PROBE_WORKSPACE_ENTRY_WAIT_SECONDS = 2
 PROBE_GENERATE_BUTTON_SELECTORS = (
     "div[class*='commercial-button']",
     "button:has-text('Generate')",
