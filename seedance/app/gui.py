@@ -599,15 +599,17 @@ class SeedanceMainWindow(QMainWindow):
         root_layout.addWidget(self._build_header_card())
 
         # ================================
-        # 主内容区切分为两页 Tab
-        # Tab1: 账号注册（原流程）
-        # Tab2: 视频去水印（新流程）
+        # 主内容区切分为三页 Tab
+        # Tab1: 账号注册概览
+        # Tab2: 账号注册实时日记
+        # Tab3: 视频去水印
         # ================================
         self.tab_widget = QTabWidget()
         self.tab_widget.setDocumentMode(True)
         root_layout.addWidget(self.tab_widget, 1)
 
         self.tab_widget.addTab(self._build_registration_tab(), "账号注册")
+        self.tab_widget.addTab(self._build_registration_log_tab(), "账号注册实时日记")
         self.tab_widget.addTab(self._build_watermark_tab(), "Dreamina 去水印")
 
     def _build_registration_tab(self) -> QWidget:
@@ -616,28 +618,26 @@ class SeedanceMainWindow(QMainWindow):
         content_layout.setSpacing(14)
         content_layout.setContentsMargins(0, 12, 0, 0)
 
-        left_panel = QWidget()
-        left_panel.setFixedWidth(500)
-        left_panel.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
-        left_column = QVBoxLayout(left_panel)
-        left_column.setSpacing(14)
-        left_column.setContentsMargins(0, 0, 0, 0)
-        content_layout.addWidget(left_panel, 0)
-
-        right_panel = QWidget()
-        right_column = QVBoxLayout(right_panel)
-        right_column.setSpacing(14)
-        right_column.setContentsMargins(0, 0, 0, 0)
-        content_layout.addWidget(right_panel, 1)
-
         runtime_card = self._build_runtime_card()
         summary_card = self._build_summary_card()
+        runtime_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        summary_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        left_column.addWidget(runtime_card)
-        left_column.addWidget(summary_card)
-        left_column.addStretch(1)
+        # ================================
+        # 账号注册首页只保留控制与概览
+        # 目的: 让常用操作与统计在同一屏并排展开
+        # 边界: 日记独立放到第二页，不影响现有日志流与按钮逻辑
+        # ================================
+        content_layout.addWidget(runtime_card, 1)
+        content_layout.addWidget(summary_card, 1)
+        return page
 
-        right_column.addWidget(self._build_log_card(), 1)
+    def _build_registration_log_tab(self) -> QWidget:
+        page = QWidget()
+        content_layout = QVBoxLayout(page)
+        content_layout.setSpacing(14)
+        content_layout.setContentsMargins(0, 12, 0, 0)
+        content_layout.addWidget(self._build_log_card(), 1)
         return page
 
     def _build_header_card(self) -> QFrame:
@@ -828,7 +828,7 @@ class SeedanceMainWindow(QMainWindow):
         return card
 
     def _build_log_card(self) -> QFrame:
-        card = self._create_card("实时日志")
+        card = self._create_card("账号注册实时日记")
         layout = card.layout()
 
         self.log_view = QTextEdit()
