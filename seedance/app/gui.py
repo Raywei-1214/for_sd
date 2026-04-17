@@ -1,4 +1,5 @@
 import html
+import json
 import logging
 import math
 import re
@@ -35,13 +36,13 @@ from PySide6.QtWidgets import (
 
 from pathlib import Path
 
-from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS, TEMP_MAIL_HEALTH_FILE
+from seedance.core.config import DEFAULT_MAX_WORKERS, DEFAULT_TOTAL_COUNT, LOG_FILE, MAX_WORKERS, MIN_WORKERS, REPORT_DIR, SUCCESS_DIR, TEMP_EMAIL_PROVIDERS
 from seedance.core.env import get_local_env_path, read_local_env_values, update_local_env_values
 from seedance.core.logger import get_logger
 from seedance.core.models import BatchProgress, BatchSummary, WatermarkProgress, WatermarkRunOptions, WatermarkSummary
 from seedance.infra.browser_detector import load_browser_config, save_browser_config
 from seedance.infra.notion_client import NotionClient
-from seedance.infra.temp_mail_health import HIGH_RISK_CREDITS_70_RATE_THRESHOLD, HIGH_RISK_FAILURE_RATE_THRESHOLD, TempMailHealthStore
+from seedance.infra.temp_mail_health import HIGH_RISK_CREDITS_70_RATE_THRESHOLD, HIGH_RISK_FAILURE_RATE_THRESHOLD
 from seedance.orchestration.batch_runner import main as run_batch
 from seedance.orchestration.watermark_runner import run_watermark_batch
 
@@ -921,7 +922,7 @@ class SeedanceMainWindow(QMainWindow):
         self.run_status_value.setObjectName("ValueHero")
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
         self.network_stats_value = self._create_note_label("尚未生成网络统计")
-        self.provider_quality_value = self._create_note_label("按邮箱站点逐条输出失败率、可用率、70积分概率")
+        self.provider_quality_value = self._create_note_label("按邮箱站点逐条输出本轮失败率、可用率、70积分占比")
 
         status_layout.addWidget(self._create_field_label("运行状态"))
         status_layout.addWidget(self.run_status_value)
@@ -949,7 +950,7 @@ class SeedanceMainWindow(QMainWindow):
         detail_layout.addWidget(self.progress_detail_value)
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
         detail_layout.addLayout(self._create_value_block("请求量/资源量统计", self.network_stats_value))
-        detail_layout.addLayout(self._create_value_block("邮箱站点质量（每个邮箱）", self.provider_quality_value))
+        detail_layout.addLayout(self._create_value_block("邮箱站点质量（本轮汇总）", self.provider_quality_value))
         detail_layout.addStretch(1)
         return card
 
@@ -1236,20 +1237,72 @@ class SeedanceMainWindow(QMainWindow):
             return False
         return True
 
+    def _build_current_run_provider_quality_snapshots(self) -> list[dict]:
+        if not self.last_summary:
+            return []
+
+        try:
+            payload = json.loads(self.last_summary.json_report_path.read_text(encoding="utf-8"))
+        except Exception:
+            return []
+
+        results = payload.get("results", [])
+        provider_stats: dict[str, dict[str, float | int | str]] = {}
+        provider_order: list[str] = []
+
+        for result in results:
+            provider_name = result.get("provider_name") or "unknown"
+            if provider_name not in provider_stats:
+                provider_stats[provider_name] = {
+                    "provider_name": provider_name,
+                    "attempt_count": 0,
+                    "task_failed_count": 0,
+                    "available_count": 0,
+                    "credits_70_count": 0,
+                }
+                provider_order.append(provider_name)
+
+            stats = provider_stats[provider_name]
+            stats["attempt_count"] += 1
+            account_quality = result.get("account_quality") or ""
+            if account_quality == "task_failed" or not result.get("success"):
+                stats["task_failed_count"] += 1
+            if account_quality == "usable":
+                stats["available_count"] += 1
+            if account_quality == "credits_70":
+                stats["credits_70_count"] += 1
+
+        snapshots: list[dict] = []
+        for provider_name in provider_order:
+            stats = provider_stats[provider_name]
+            attempt_count = int(stats["attempt_count"])
+            failure_rate = stats["task_failed_count"] / attempt_count if attempt_count else 0.0
+            available_rate = stats["available_count"] / attempt_count if attempt_count else 0.0
+            credits_70_rate = stats["credits_70_count"] / attempt_count if attempt_count else 0.0
+            snapshots.append(
+                {
+                    "provider_name": provider_name,
+                    "attempt_count": attempt_count,
+                    "failure_rate": failure_rate,
+                    "available_rate": available_rate,
+                    "credits_70_rate": credits_70_rate,
+                }
+            )
+        return snapshots
+
     def _format_provider_quality_summary_html(self) -> str:
-        health_store = TempMailHealthStore(TEMP_MAIL_HEALTH_FILE)
-        snapshots = health_store.build_provider_quality_snapshot(
-            [provider["name"] for provider in TEMP_EMAIL_PROVIDERS]
-        )
+        snapshots = self._build_current_run_provider_quality_snapshots()
+        if not snapshots:
+            return "尚未生成本轮邮箱站点汇总"
 
         # ================================
-        # 站点质量逐行使用独立段落渲染
-        # 目的: 让每个邮箱站点之间保留一点呼吸感，但不明显拉高整块区域
-        # 边界: 这里只调整展示间距，不改变统计口径与高风险判定
+        # 站点质量改为只展示本轮统计
+        # 目的: 让顶部概览和下方站点质量使用同一批次口径，避免历史累计误导判断
+        # 边界: 这里只改 GUI 展示，不影响底层健康度文件继续为调度服务
         # ================================
         html_lines: list[str] = [
             '<p style="margin-top: 0px; margin-bottom: 4px; color: #6D6A5F;">'
-            "按邮箱站点逐条统计：失败率 / 可用率 / 70积分概率"
+            "按邮箱站点逐条统计本轮汇总：失败率 / 可用率 / 70积分占比"
             "</p>"
         ]
         for snapshot in snapshots:
@@ -1257,7 +1310,7 @@ class SeedanceMainWindow(QMainWindow):
                 f"{snapshot['provider_name']} | "
                 f"失败率 {snapshot['failure_rate'] * 100:.1f}% | "
                 f"可用率 {snapshot['available_rate'] * 100:.1f}% | "
-                f"70积分概率 {snapshot['credits_70_rate'] * 100:.1f}% | "
+                f"70积分占比 {snapshot['credits_70_rate'] * 100:.1f}% | "
                 f"样本 {snapshot['attempt_count']}"
             )
             is_high_risk = (
@@ -1582,7 +1635,7 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_detail_value.setText(f"已完成 0 / {run_config.total_count}，运行中 0，待开始 {run_config.total_count}")
         self.last_result_value.setText("任务已启动，等待批量结果...")
         self.network_stats_value.setText("运行中，网络统计将在批次结束后汇总")
-        self.provider_quality_value.setText("运行中，邮箱站点质量将在批次结束后刷新")
+        self.provider_quality_value.setText("运行中，本轮邮箱站点汇总将在批次结束后刷新")
         self.start_button.setText("正在执行")
         self._set_button_busy_state(self.start_button, True)
         self._set_button_busy_state(self.stop_button, False)
