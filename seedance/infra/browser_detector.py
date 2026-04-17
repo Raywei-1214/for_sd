@@ -22,13 +22,14 @@ def load_browser_config() -> dict:
     return {}
 
 
-def save_browser_config(config: dict) -> None:
+def save_browser_config(config: dict, *, quiet: bool = False) -> None:
     try:
         BROWSER_CONFIG_FILE.write_text(
             json.dumps(config, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
-        logger.info("✓✓✓ 浏览器配置已保存")
+        if not quiet:
+            logger.info("✓✓✓ 浏览器配置已保存")
     except Exception as exc:
         logger.warning(f"保存浏览器配置失败: {exc}")
 
@@ -119,7 +120,17 @@ def _is_valid_browser(binary_path: str) -> bool:
         if not path_obj.is_file():
             return False
 
-        file_size_ok = path_obj.stat().st_size > 1024 * 1024
+        # ================================
+        # mac App Bundle 里的浏览器入口常常只是一个很小的启动器
+        # 目的: 避免把真实可启动的 Chrome/Chromium 误判成“体积过小无效”
+        # 边界: 仅对 mac 上的官方浏览器入口放宽体积校验，其他平台仍保留原有防误判约束
+        # ================================
+        is_macos_browser_launcher = (
+            platform.system().lower() == "darwin"
+            and path_obj.name in {"Google Chrome", "Chromium"}
+            and ".app/Contents/MacOS/" in str(path_obj)
+        )
+        file_size_ok = path_obj.stat().st_size > 1024 * 1024 or is_macos_browser_launcher
         executable_ok = os.access(path_obj, os.X_OK)
         windows_binary_ok = platform.system().lower() == "windows" and path_obj.suffix.lower() == ".exe"
         return file_size_ok and (executable_ok or windows_binary_ok)

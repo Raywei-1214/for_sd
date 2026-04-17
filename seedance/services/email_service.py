@@ -407,6 +407,10 @@ class TempEmailService:
             internxt_email = await self._extract_internxt_email(page)
             if internxt_email:
                 return internxt_email
+        if adapter.name == "tempmail.plus":
+            tempmail_plus_email = await self._extract_tempmail_plus_email(page)
+            if tempmail_plus_email:
+                return tempmail_plus_email
 
         for selector in adapter.email_value_selectors:
             try:
@@ -594,6 +598,28 @@ class TempEmailService:
                         return text
             except Exception:
                 continue
+
+        return None
+
+    async def _extract_tempmail_plus_email(self, page: Page) -> str | None:
+        # ================================
+        # TempMail.Plus 当前把邮箱拆成“用户名输入框 + 域名文本”
+        # 目的: 直接按站点真实结构拼接邮箱，避免把说明文案误判成邮箱
+        # 边界: 仅依赖 #pre_button 与 #domain，不对其他文本块做模糊猜测
+        # ================================
+        try:
+            prefix_node = page.locator("#pre_button").first
+            domain_node = page.locator("#domain").first
+            if not await prefix_node.count() or not await domain_node.count():
+                return None
+
+            prefix = (await prefix_node.input_value()).strip()
+            domain = (await domain_node.inner_text()).strip()
+            candidate = f"{prefix}{domain}".strip()
+            if self._is_valid_email(candidate):
+                return candidate
+        except Exception:
+            pass
 
         return None
 

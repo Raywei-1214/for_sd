@@ -145,10 +145,16 @@
   - `mail.chatgpt.org.uk`
   - `internxt`
   - `tempemail.cc`
+  - `tempmail.plus`
 - `mail.chatgpt.org.uk` 当前已接入：
   - 真实浏览器可自动跳到专属邮箱 URL
   - 邮箱地址可从 `URL / 标题 / #emailDisplay` 多路提取
   - 验证码正文位于弹层 `iframe`，当前已补专用预览与 iframe 正文提取
+- `tempmail.plus` 当前已接入：
+  - 入口页可直接打开，不会先落到 Cloudflare 安全挑战页
+  - 邮箱地址不是单节点展示，而是由 `#pre_button + #domain` 组合得到
+  - `New random name` 可直接切换新邮箱，当前主路径未见 reCAPTCHA 阻塞
+  - 收件箱主路径会命中 `/api/mails?email=...&epin=...`，适合沿现有页面型 provider 模型接入
 - `tempadd.com` 当前不接入：
   - 真实浏览器会先落到 Cloudflare 安全验证页
   - 当前主要问题是风控阻塞，不是简单 selector 失效
@@ -361,6 +367,9 @@
   - `screenshots_usa/`
   - `browser_config.json`
   - `temp_mail_health.json`
+- `browser_config.json` 当前除浏览器偏好外，还会持久化：
+  - GUI 侧各邮箱站点的触发比例
+  - 目的: 用户调整一次后，下次打开面板可直接沿用
 
 ## 下一阶段建议
 

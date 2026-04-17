@@ -240,6 +240,25 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
             "capcut",
         ),
     ),
+    "tempmail.plus": TempMailAdapter(
+        name="tempmail.plus",
+        ready_selectors=(
+            "#pre_button",
+            "#domain",
+            "#pre_rand",
+            "#inbox",
+        ),
+        email_value_selectors=(),
+        email_text_selectors=(),
+        email_attribute_selectors=(),
+        verification_text_markers=(
+            "verification code",
+            "code is",
+            "dreamina",
+            "capcut",
+            "confirm",
+        ),
+    ),
 }
 
 
