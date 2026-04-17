@@ -19,12 +19,12 @@ TEMP_EMAIL_PROVIDERS = [
     {"name": "mail.chatgpt.org.uk", "url": "https://mail.chatgpt.org.uk/"},
     {"name": "internxt", "url": "https://internxt.com/temporary-email"},
     {"name": "tempemail.cc", "url": "https://www.tempemail.cc/fr"},
-    {"name": "tempmail.plus", "url": "https://tempmail.plus/en/#!"},
     # ================================
     # 70 积分占比过高，当前轮次先停用
     # 目的: 降低无效站点对整体可用率和流量的消耗
     # 边界: 只从启用池移除，不删除适配器实现，方便后续恢复观察
     # ================================
+    # {"name": "tempmail.plus", "url": "https://tempmail.plus/en/#!"},
     # {"name": "10minutemail.net", "url": "https://10minutemail.net/"},
     # {"name": "guerrillamail", "url": "https://www.guerrillamail.com/"},
 ]
