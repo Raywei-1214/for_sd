@@ -41,6 +41,7 @@ CONFIRMATION_POLL_INTERVAL_SECONDS = 3
 REGISTRATION_RESULT_POLL_ATTEMPTS = 10
 REGISTRATION_RESULT_POLL_INTERVAL_SECONDS = 4
 PROBE_RETRY_COUNT = 5
+PROBE_NAVIGATION_RETRY_COUNT = 3
 
 POPUP_CLOSE_SELECTORS = (
     "button[aria-label='Close']",
@@ -187,6 +188,13 @@ PROBE_MODEL_DROPDOWN_SELECTOR = "div.lv-select-view"
 PROBE_MODEL_DROPDOWN_TEXT = "Dreamina Seedance"
 PROBE_MODEL_OPTION_SELECTOR = "li[role='option']"
 PROBE_MODEL_OPTION_TEXT = "2.0 Fast"
+PROBE_BLOCKED_TEXT_MARKERS = (
+    "sign in start creating",
+    "creative partner program",
+    "ai agent auto trends",
+    "see the prompt guide",
+    "1080p is now available",
+)
 PROBE_GENERATE_BUTTON_SELECTORS = (
     "div[class*='commercial-button']",
     "button:has-text('Generate')",

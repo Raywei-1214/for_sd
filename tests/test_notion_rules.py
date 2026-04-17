@@ -137,6 +137,22 @@ class NotionRulesTests(unittest.TestCase):
         self.assertEqual(payload["sessionid_context"], result.sessionid_context)
         self.assertEqual(payload["probe_context"], result.probe_context)
 
+    def test_probe_context_blocked_detects_sign_in_shell(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+
+        self.assertTrue(
+            RegistrationService._is_probe_context_blocked(
+                service,
+                "url=https://dreamina.capcut.com | body=Explore Create Assets Canvas Sign in Start Creating With AI Agent",
+            )
+        )
+        self.assertFalse(
+            RegistrationService._is_probe_context_blocked(
+                service,
+                "url=https://dreamina.capcut.com | body=Explore Create Assets Canvas 0 Upgrade Start Creating With AI Agent AI Image",
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

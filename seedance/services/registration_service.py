@@ -35,10 +35,12 @@ from seedance.core.config import (
     POPUP_CLOSE_SELECTORS,
     PROBE_BALANCE_SELECTORS,
     PROBE_GENERATE_BUTTON_SELECTORS,
+    PROBE_BLOCKED_TEXT_MARKERS,
     PROBE_MODEL_DROPDOWN_SELECTOR,
     PROBE_MODEL_DROPDOWN_TEXT,
     PROBE_MODEL_OPTION_SELECTOR,
     PROBE_MODEL_OPTION_TEXT,
+    PROBE_NAVIGATION_RETRY_COUNT,
     PROBE_RETRY_COUNT,
     REGISTRATION_RESULT_POLL_ATTEMPTS,
     REGISTRATION_RESULT_POLL_INTERVAL_SECONDS,
@@ -258,6 +260,7 @@ class RegistrationService:
         page_context: str | None,
         seedance_credits: str | None,
         seedance2_cost: str | None,
+        navigation_attempt: int,
         model_dropdown_found: bool,
         model_fast_selected: bool,
         balance_samples: list[str],
@@ -266,6 +269,7 @@ class RegistrationService:
         parts = []
         if page_context:
             parts.append(page_context)
+        parts.append(f"probe_navigation_attempt={navigation_attempt}")
         parts.append(f"seedance_credits={seedance_credits or '<empty>'}")
         parts.append(f"seedance2_cost={seedance2_cost or '<empty>'}")
         parts.append(f"model_dropdown_found={'yes' if model_dropdown_found else 'no'}")
@@ -278,6 +282,28 @@ class RegistrationService:
             f"{'; '.join(generate_button_samples[:3]) if generate_button_samples else '<empty>'}"
         )
         return " | ".join(parts)
+
+    def _is_probe_context_blocked(self, page_context: str | None) -> bool:
+        if not page_context:
+            return False
+
+        context_text = page_context.lower()
+        return any(marker in context_text for marker in PROBE_BLOCKED_TEXT_MARKERS)
+
+    async def _dismiss_probe_blockers(self, page: Page) -> None:
+        # ================================
+        # 探针页会被横幅/弹层/半登录态挡住
+        # 目的: 进入真正可采集的工作区，而不是在首页壳子上误采 0 或空值
+        # 边界: 这里只做轻量清场，不触发额外业务动作
+        # ================================
+        await self.close_popups(page, max_attempts=5)
+        for _ in range(2):
+            try:
+                await page.keyboard.press("Escape")
+            except Exception:
+                break
+            await asyncio.sleep(0.5)
+        await self.close_popups(page, max_attempts=5)
 
     async def save_screenshot(self, page: Page, name: str) -> None:
         if not self.debug_mode:
@@ -547,96 +573,139 @@ class RegistrationService:
         generate_button_samples: list[str] = []
         model_dropdown_found = False
         model_fast_selected = False
+        final_probe_context = ""
 
-        await page.goto(DREAMINA_VIDEO_URL, timeout=60000)
-        await asyncio.sleep(5)
-        await self.close_popups(page)
+        for navigation_attempt in range(1, PROBE_NAVIGATION_RETRY_COUNT + 1):
+            current_seedance2_cost = None
+            current_seedance_credits = None
+            current_balance_samples: list[str] = []
+            current_generate_button_samples: list[str] = []
+            current_model_dropdown_found = False
+            current_model_fast_selected = False
 
-        # ================================
-        # 这里仍是模糊探测，但选择器已统一收口到配置层
-        # 下一阶段可以继续替换为站点能力探针
-        # ================================
-        for _ in range(PROBE_RETRY_COUNT):
-            try:
-                for selector in PROBE_BALANCE_SELECTORS:
-                    credit_elements = await page.query_selector_all(selector)
-                    for element in credit_elements:
-                        text = await element.text_content()
-                        compact_text = self._compact_text(text)
-                        if compact_text and compact_text not in balance_samples:
-                            balance_samples.append(compact_text)
-                        if text and text.strip().isdigit():
-                            seedance_credits = text.strip()
+            await page.goto(DREAMINA_VIDEO_URL, timeout=60000)
+            await asyncio.sleep(5)
+            await self._dismiss_probe_blockers(page)
+
+            # ================================
+            # 探针页必须先进入“真工作区”，否则读取到的 0 或空值都不可信
+            # 触发条件: body 仍停在 Sign in / AI Agent Auto / 1080P banner 等首页壳子
+            # 边界: 最多重进 3 次，不把单条样本拖成无限等待
+            # ================================
+            for _ in range(PROBE_RETRY_COUNT):
+                try:
+                    for selector in PROBE_BALANCE_SELECTORS:
+                        credit_elements = await page.query_selector_all(selector)
+                        for element in credit_elements:
+                            text = await element.text_content()
+                            compact_text = self._compact_text(text)
+                            if compact_text and compact_text not in current_balance_samples:
+                                current_balance_samples.append(compact_text)
+                            if compact_text and compact_text not in balance_samples:
+                                balance_samples.append(compact_text)
+                            if text and text.strip().isdigit():
+                                current_seedance_credits = text.strip()
+                                break
+                        if current_seedance_credits:
                             break
-                    if seedance_credits:
+                    if current_seedance_credits:
                         break
-                if seedance_credits:
-                    break
+                except Exception:
+                    pass
+                await asyncio.sleep(1)
+
+            try:
+                all_select_nodes = await page.query_selector_all(PROBE_MODEL_DROPDOWN_SELECTOR)
+                dreamina_dropdown = None
+                for select_node in all_select_nodes:
+                    text = await select_node.text_content()
+                    if PROBE_MODEL_DROPDOWN_TEXT in (text or ""):
+                        dreamina_dropdown = select_node
+                        current_model_dropdown_found = True
+                        break
+
+                if dreamina_dropdown:
+                    await dreamina_dropdown.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    options = await page.query_selector_all(PROBE_MODEL_OPTION_SELECTOR)
+                    for option in options:
+                        option_text = await option.text_content()
+                        if PROBE_MODEL_OPTION_TEXT in (option_text or ""):
+                            await option.scroll_into_view_if_needed()
+                            await option.click(force=True)
+                            current_model_fast_selected = True
+                            logger.info(f"[线程{self.thread_id}] ✓ 成功选中 2.0 Fast 模型")
+                            await asyncio.sleep(2)
+                            break
             except Exception:
                 pass
-            await asyncio.sleep(1)
 
-        try:
-            all_select_nodes = await page.query_selector_all(PROBE_MODEL_DROPDOWN_SELECTOR)
-            dreamina_dropdown = None
-            for select_node in all_select_nodes:
-                text = await select_node.text_content()
-                if PROBE_MODEL_DROPDOWN_TEXT in (text or ""):
-                    dreamina_dropdown = select_node
-                    model_dropdown_found = True
-                    break
-
-            if dreamina_dropdown:
-                await dreamina_dropdown.click(timeout=5000)
-                await asyncio.sleep(2)
-                options = await page.query_selector_all(PROBE_MODEL_OPTION_SELECTOR)
-                for option in options:
-                    option_text = await option.text_content()
-                    if PROBE_MODEL_OPTION_TEXT in (option_text or ""):
-                        await option.scroll_into_view_if_needed()
-                        await option.click(force=True)
-                        model_fast_selected = True
-                        logger.info(f"[线程{self.thread_id}] ✓ 成功选中 2.0 Fast 模型")
-                        await asyncio.sleep(2)
-                        break
-        except Exception:
-            pass
-
-        for _ in range(PROBE_RETRY_COUNT):
-            try:
-                for selector in PROBE_GENERATE_BUTTON_SELECTORS:
-                    buttons = await page.query_selector_all(selector)
-                    for button in buttons:
-                        text = await button.text_content()
-                        compact_text = self._compact_text(text)
-                        if compact_text and compact_text not in generate_button_samples:
-                            generate_button_samples.append(compact_text)
-                        numbers = re.findall(r"\d+", text or "")
-                        if numbers:
-                            seedance2_cost = numbers[0]
+            for _ in range(PROBE_RETRY_COUNT):
+                try:
+                    for selector in PROBE_GENERATE_BUTTON_SELECTORS:
+                        buttons = await page.query_selector_all(selector)
+                        for button in buttons:
+                            text = await button.text_content()
+                            compact_text = self._compact_text(text)
+                            if compact_text and compact_text not in current_generate_button_samples:
+                                current_generate_button_samples.append(compact_text)
+                            if compact_text and compact_text not in generate_button_samples:
+                                generate_button_samples.append(compact_text)
+                            numbers = re.findall(r"\d+", text or "")
+                            if numbers:
+                                current_seedance2_cost = numbers[0]
+                                break
+                        if current_seedance2_cost:
                             break
-                    if seedance2_cost:
+                    if current_seedance2_cost:
                         break
-                if seedance2_cost:
-                    break
-            except Exception:
-                pass
-            await asyncio.sleep(1)
+                except Exception:
+                    pass
+                await asyncio.sleep(1)
 
-        page_context = await self._capture_page_context(page)
-        probe_context = self._format_probe_context(
-            page_context=page_context,
+            page_context = await self._capture_page_context(page)
+            probe_context = self._format_probe_context(
+                page_context=page_context,
+                seedance_credits=current_seedance_credits,
+                seedance2_cost=current_seedance2_cost,
+                navigation_attempt=navigation_attempt,
+                model_dropdown_found=current_model_dropdown_found,
+                model_fast_selected=current_model_fast_selected,
+                balance_samples=current_balance_samples,
+                generate_button_samples=current_generate_button_samples,
+            )
+            final_probe_context = probe_context
+
+            probe_context_blocked = self._is_probe_context_blocked(page_context)
+            probe_has_usable_signal = bool(
+                current_seedance2_cost is not None
+                or current_seedance_credits is not None
+                or current_model_dropdown_found
+                or current_generate_button_samples
+            )
+            if probe_has_usable_signal and not probe_context_blocked:
+                seedance2_cost = current_seedance2_cost
+                seedance_credits = current_seedance_credits
+                model_dropdown_found = current_model_dropdown_found
+                model_fast_selected = current_model_fast_selected
+                break
+
+            logger.warning(f"[线程{self.thread_id}] 探针页未稳定进入工作区，准备重试: {probe_context}")
+
+        final_probe_context = self._format_probe_context(
+            page_context=await self._capture_page_context(page),
             seedance_credits=seedance_credits,
             seedance2_cost=seedance2_cost,
+            navigation_attempt=navigation_attempt,
             model_dropdown_found=model_dropdown_found,
             model_fast_selected=model_fast_selected,
             balance_samples=balance_samples,
             generate_button_samples=generate_button_samples,
-        )
+        ) if not final_probe_context else final_probe_context
         if seedance2_cost is None:
-            logger.warning(f"[线程{self.thread_id}] 未采到 seedance2_cost: {probe_context}")
+            logger.warning(f"[线程{self.thread_id}] 未采到 seedance2_cost: {final_probe_context}")
 
-        return seedance2_cost, seedance_credits, probe_context
+        return seedance2_cost, seedance_credits, final_probe_context
 
     async def _open_home_page(self, page: Page, result: RegistrationResult) -> bool:
         self._mark_step(result, RegistrationStep.OPEN_HOME)
