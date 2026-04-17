@@ -22,7 +22,7 @@
   - 负责目录扫描、视频时长预检、去水印串行调度与 JSON 运行报告输出。
 - `seedance/services/registration_service.py`
   - 负责 Dreamina 注册主流程、积分探测、`sessionid` 抓取。
-  - `probe` 当前会先识别首页壳子，再按需执行一次 `Start Creating / AI Video` 轻量引导；只有采到数值型 `credits/cost` 才接受结果。
+  - `probe` 当前会先识别首页壳子，再按需执行 `Create / Start Creating / AI Video` 轻量引导；如果首次采样后仍停在壳子里，会在同次导航内补一次页面内引导后再采，不额外增加外网导航次数。
 - `seedance/services/watermark_service.py`
   - 负责单视频去水印调用、异常归一与结果对象构造。
 - `seedance/services/email_service.py`
