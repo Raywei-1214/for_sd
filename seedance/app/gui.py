@@ -552,6 +552,7 @@ class SeedanceMainWindow(QMainWindow):
         self.watermark_stop_event: Event | None = None
         self._button_animations: dict[QPushButton, QVariantAnimation] = {}
         self.provider_ratio_inputs: dict[str, QSpinBox] = {}
+        self._is_loading_provider_ratios = False
 
         self.setWindowTitle("拾米 - SD账号注册")
         self.resize(1360, 880)
@@ -638,8 +639,8 @@ class SeedanceMainWindow(QMainWindow):
     def _build_registration_overview_tab(self) -> QWidget:
         page = QWidget()
         content_layout = QHBoxLayout(page)
-        content_layout.setSpacing(14)
-        content_layout.setContentsMargins(0, 12, 0, 0)
+        content_layout.setSpacing(12)
+        content_layout.setContentsMargins(0, 4, 0, 0)
 
         summary_card = self._build_summary_card()
         summary_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -779,7 +780,7 @@ class SeedanceMainWindow(QMainWindow):
             ratio_input.setRange(0, 100)
             ratio_input.setSuffix(" %")
             ratio_input.setFixedHeight(34)
-            ratio_input.valueChanged.connect(self._refresh_provider_ratio_total_note)
+            ratio_input.valueChanged.connect(self._handle_provider_ratio_changed)
             self.provider_ratio_inputs[provider_name] = ratio_input
             row = index // 2
             column = index % 2
@@ -828,15 +829,17 @@ class SeedanceMainWindow(QMainWindow):
         ratio_section.setContentsMargins(0, 0, 0, 0)
         content_row.addLayout(ratio_section, 2)
 
-        control_section.addWidget(self._create_field_label("基础控制"))
-        control_section.addLayout(form_grid)
-        control_section.addLayout(options_layout)
-        control_section.addStretch(1)
-        control_section.addLayout(button_row)
+        control_panel, control_panel_layout = self._create_runtime_subpanel("基础控制")
+        control_panel_layout.addLayout(form_grid)
+        control_panel_layout.addLayout(options_layout)
+        control_panel_layout.addLayout(button_row)
+        control_panel_layout.addStretch(1)
+        control_section.addWidget(control_panel, 1)
 
-        ratio_section.addWidget(self._create_field_label("比例控制"))
-        ratio_section.addLayout(ratio_block)
-        ratio_section.addStretch(1)
+        ratio_panel, ratio_panel_layout = self._create_runtime_subpanel("站点触发比例控制")
+        ratio_panel_layout.addLayout(ratio_block)
+        ratio_panel_layout.addStretch(1)
+        ratio_section.addWidget(ratio_panel, 1)
         return card
 
     def _build_summary_card(self) -> QFrame:
@@ -887,6 +890,7 @@ class SeedanceMainWindow(QMainWindow):
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
         detail_layout.addLayout(self._create_value_block("请求量/资源量统计", self.network_stats_value))
         detail_layout.addLayout(self._create_value_block("邮箱站点质量（每个邮箱）", self.provider_quality_value))
+        detail_layout.addStretch(1)
         return card
 
     def _build_log_card(self) -> QFrame:
@@ -963,6 +967,15 @@ class SeedanceMainWindow(QMainWindow):
         layout.addLayout(control_row)
         return card
 
+    def _create_runtime_subpanel(self, title_text: str) -> tuple[QFrame, QVBoxLayout]:
+        panel = QFrame()
+        panel.setObjectName("StatCard")
+        layout = QVBoxLayout(panel)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(10)
+        layout.addWidget(self._create_field_label(title_text))
+        return panel, layout
+
     def _create_field_label(self, text: str) -> QLabel:
         label = QLabel(text)
         label.setObjectName("FieldLabel")
@@ -995,6 +1008,37 @@ class SeedanceMainWindow(QMainWindow):
         self.provider_ratio_total_note.setText(
             f'<span style="color: {color};">总比率 {total_ratio}%（必须等于 100%）</span>'
         )
+
+    def _save_provider_ratios_to_browser_config(self) -> None:
+        if self._is_loading_provider_ratios:
+            return
+
+        browser_config = load_browser_config()
+        browser_config["provider_ratios"] = self._collect_provider_ratios()
+        save_browser_config(browser_config, quiet=True)
+
+    def _handle_provider_ratio_changed(self) -> None:
+        self._refresh_provider_ratio_total_note()
+        self._save_provider_ratios_to_browser_config()
+
+    def _load_provider_ratios_from_browser_config(self) -> dict[str, int]:
+        browser_config = load_browser_config()
+        saved_ratios = browser_config.get("provider_ratios")
+        if not isinstance(saved_ratios, dict):
+            return self._build_default_provider_ratios()
+
+        normalized_ratios: dict[str, int] = {}
+        for provider in TEMP_EMAIL_PROVIDERS:
+            provider_name = provider["name"]
+            raw_ratio = saved_ratios.get(provider_name, 0)
+            try:
+                normalized_ratios[provider_name] = max(0, min(100, int(raw_ratio)))
+            except (TypeError, ValueError):
+                normalized_ratios[provider_name] = 0
+
+        if sum(normalized_ratios.values()) != 100:
+            return self._build_default_provider_ratios()
+        return normalized_ratios
 
     def _collect_provider_ratios(self) -> dict[str, int]:
         return {
@@ -1071,9 +1115,11 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_detail_value.setText(f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}")
         self.last_result_value.setText("最近一次运行结果将在这里显示")
         self.network_stats_value.setText("尚未生成网络统计")
-        default_provider_ratios = self._build_default_provider_ratios()
+        provider_ratios = self._load_provider_ratios_from_browser_config()
+        self._is_loading_provider_ratios = True
         for provider_name, ratio_input in self.provider_ratio_inputs.items():
-            ratio_input.setValue(default_provider_ratios.get(provider_name, 0))
+            ratio_input.setValue(provider_ratios.get(provider_name, 0))
+        self._is_loading_provider_ratios = False
         self._refresh_provider_ratio_total_note()
         self._refresh_provider_quality_summary()
         self._set_button_locked_state(self.start_button, False)
@@ -1334,6 +1380,7 @@ class SeedanceMainWindow(QMainWindow):
 
         browser_config = load_browser_config()
         browser_config["browser_choice"] = self.browser_combo.currentData() or "auto"
+        browser_config["provider_ratios"] = self._collect_provider_ratios()
         save_browser_config(browser_config)
 
         self.stop_event = Event()
