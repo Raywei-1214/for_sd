@@ -348,7 +348,7 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - 或者 URL 已经跳到 `agentic / generate / omniReference` 页面
 - 或者只看到了按钮文本、没采到数值型 `credits/cost`
 
-这轮采样都会被判成无效，流程会先优先尝试 `AI Video`，再尝试 `Start Creating` 轻量进入视频工作区；如果 URL 已经偏离视频页，会先在同次导航内定向拉回 `home?type=video&workspace=0`，然后再决定是否重试。
+这轮采样都会被判成无效，流程会先优先尝试 `AI Video`，再尝试 `Start Creating` 轻量进入视频工作区；如果 URL 已经偏离视频页，会直接放弃该次采样，不再额外追加一次 `goto`。
 
 ## 新同事建议的接手顺序
 

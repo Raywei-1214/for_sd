@@ -22,7 +22,7 @@
   - 负责目录扫描、视频时长预检、去水印串行调度与 JSON 运行报告输出。
 - `seedance/services/registration_service.py`
   - 负责 Dreamina 注册主流程、积分探测、`sessionid` 抓取。
-  - `probe` 当前只保留视频工作区采样路径：优先尝试 `AI Video`，再尝试 `Start Creating`；并显式屏蔽 `agentic / generate / omniReference` 页面。若 URL 偏离 `home?type=video&workspace=0`，会在同次导航内定向拉回视频工作区后再采，不额外放大无界重试。
+  - `probe` 当前只保留视频工作区采样路径：优先尝试 `AI Video`，再尝试 `Start Creating`；并显式屏蔽 `agentic / generate / omniReference` 页面。若 URL 不是 `home?type=video&workspace=0`，该轮采样会直接判成无效，不再额外追加 `goto` 导航。
 - `seedance/services/watermark_service.py`
   - 负责单视频去水印调用、异常归一与结果对象构造。
 - `seedance/services/email_service.py`

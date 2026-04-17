@@ -364,16 +364,6 @@ class RegistrationService:
 
         return action_taken
 
-    async def _reset_probe_to_video_workspace(self, page: Page) -> None:
-        # ================================
-        # 当 URL 已经偏离视频工作区时，直接拉回固定视频入口
-        # 目的: 阻断 omniReference / agentic / generate 旁路继续污染 probe
-        # 边界: 每次导航内最多执行一次，不把外网请求放大成无界重试
-        # ================================
-        await page.goto(DREAMINA_VIDEO_URL, timeout=60000)
-        await asyncio.sleep(3)
-        await self._dismiss_probe_blockers(page)
-
     async def save_screenshot(self, page: Page, name: str) -> None:
         if not self.debug_mode:
             return
@@ -798,26 +788,6 @@ class RegistrationService:
                 current_seedance2_cost,
             )
             probe_is_video_context = self._is_video_probe_context(page_context)
-            if not probe_is_video_context:
-                await self._reset_probe_to_video_workspace(page)
-                probe_snapshot = await self._collect_probe_snapshot(
-                    page=page,
-                    navigation_attempt=navigation_attempt,
-                    balance_samples=balance_samples,
-                    generate_button_samples=generate_button_samples,
-                )
-                probe_context = str(probe_snapshot["probe_context"])
-                page_context = probe_snapshot["page_context"]
-                current_seedance2_cost = probe_snapshot["seedance2_cost"]
-                current_seedance_credits = probe_snapshot["seedance_credits"]
-                current_model_dropdown_found = bool(probe_snapshot["model_dropdown_found"])
-                current_model_fast_selected = bool(probe_snapshot["model_fast_selected"])
-                probe_context_blocked = self._is_probe_context_blocked(page_context)
-                probe_has_numeric_signal = self._has_numeric_probe_signal(
-                    current_seedance_credits,
-                    current_seedance2_cost,
-                )
-                probe_is_video_context = self._is_video_probe_context(page_context)
             if probe_context_blocked:
                 workspace_action_taken = await self._enter_video_probe_workspace(page)
                 if workspace_action_taken:
