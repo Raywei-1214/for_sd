@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 
 from seedance.core.logger import get_logger
@@ -54,6 +55,7 @@ class TempMailHealthStore:
         provider_stats["consecutive_failures"] = int(provider_stats.get("consecutive_failures", 0) or 0)
         provider_stats["total_failure_count"] = total_failure_count
         provider_stats["attempt_count"] = max(attempt_count, success_count + total_failure_count)
+        provider_stats["available_count"] = int(provider_stats.get("available_count", 0) or 0)
         provider_stats["credits_observed_count"] = int(provider_stats.get("credits_observed_count", 0) or 0)
         provider_stats["credits_70_count"] = int(provider_stats.get("credits_70_count", 0) or 0)
         return provider_stats
@@ -68,9 +70,17 @@ class TempMailHealthStore:
         penalty = min(consecutive_failures * 0.08, 0.32)
         return max(success_rate - penalty, 0.05)
 
-    def build_provider_plan(self, provider_names: list[str], total_count: int) -> list[str]:
+    def build_provider_plan(
+        self,
+        provider_names: list[str],
+        total_count: int,
+        provider_ratios: dict[str, int] | None = None,
+    ) -> list[str]:
         if not provider_names or total_count <= 0:
             return []
+
+        if provider_ratios:
+            return self._build_ratio_provider_plan(provider_names, total_count, provider_ratios)
 
         ranked_provider_names = sorted(
             provider_names,
@@ -104,12 +114,72 @@ class TempMailHealthStore:
         self._save()
         return plan
 
+    def _build_ratio_provider_plan(
+        self,
+        provider_names: list[str],
+        total_count: int,
+        provider_ratios: dict[str, int],
+    ) -> list[str]:
+        active_provider_names = [
+            provider_name
+            for provider_name in provider_names
+            if provider_ratios.get(provider_name, 0) > 0
+        ]
+        if not active_provider_names:
+            return []
+
+        raw_counts = {
+            provider_name: total_count * provider_ratios.get(provider_name, 0) / 100
+            for provider_name in active_provider_names
+        }
+        assigned_counts = {
+            provider_name: math.floor(raw_count)
+            for provider_name, raw_count in raw_counts.items()
+        }
+        remaining_slots = total_count - sum(assigned_counts.values())
+
+        fractional_rank = sorted(
+            active_provider_names,
+            key=lambda provider_name: (
+                raw_counts[provider_name] - assigned_counts[provider_name],
+                provider_ratios.get(provider_name, 0),
+            ),
+            reverse=True,
+        )
+        for provider_name in fractional_rank[:remaining_slots]:
+            assigned_counts[provider_name] += 1
+
+        rotation_index = self.data.get("rotation_index", 0)
+        rotation_offset = rotation_index % len(active_provider_names)
+        round_robin_provider_names = (
+            active_provider_names[rotation_offset:] + active_provider_names[:rotation_offset]
+        )
+
+        plan: list[str] = []
+        while len(plan) < total_count:
+            appended = False
+            for provider_name in round_robin_provider_names:
+                if assigned_counts[provider_name] <= 0:
+                    continue
+                plan.append(provider_name)
+                assigned_counts[provider_name] -= 1
+                appended = True
+                if len(plan) >= total_count:
+                    break
+            if not appended:
+                break
+
+        self.data["rotation_index"] = (rotation_index + total_count) % len(active_provider_names)
+        self._save()
+        return plan
+
     def record_provider_result(
         self,
         provider_name: str,
         *,
         success: bool,
         hard_failure: bool,
+        available: bool = False,
         credits_observed: bool = False,
         credits_70: bool = False,
     ) -> None:
@@ -119,6 +189,8 @@ class TempMailHealthStore:
         if success:
             stats["success_count"] += 1
             stats["consecutive_failures"] = 0
+            if available:
+                stats["available_count"] += 1
         else:
             stats["total_failure_count"] += 1
             if hard_failure:
@@ -136,6 +208,12 @@ class TempMailHealthStore:
         self,
         provider_names: list[str] | None = None,
     ) -> list[dict]:
+        return self.build_provider_quality_snapshot(provider_names)
+
+    def build_provider_quality_snapshot(
+        self,
+        provider_names: list[str] | None = None,
+    ) -> list[dict]:
         if provider_names is None:
             provider_names = sorted(self.data.get("providers", {}).keys())
 
@@ -149,6 +227,11 @@ class TempMailHealthStore:
                 if attempt_count
                 else 0.0
             )
+            available_rate = (
+                stats["available_count"] / attempt_count
+                if attempt_count
+                else 0.0
+            )
             credits_70_rate = (
                 stats["credits_70_count"] / credits_observed_count
                 if credits_observed_count
@@ -159,11 +242,13 @@ class TempMailHealthStore:
                     "provider_name": provider_name,
                     "attempt_count": attempt_count,
                     "success_count": stats["success_count"],
+                    "available_count": stats["available_count"],
                     "hard_failure_count": stats["failure_count"],
                     "total_failure_count": stats["total_failure_count"],
                     "credits_observed_count": credits_observed_count,
                     "credits_70_count": stats["credits_70_count"],
                     "failure_rate": failure_rate,
+                    "available_rate": available_rate,
                     "credits_70_rate": credits_70_rate,
                 }
             )
@@ -173,7 +258,7 @@ class TempMailHealthStore:
         self,
         provider_names: list[str] | None = None,
     ) -> list[dict]:
-        snapshots = self.build_provider_risk_snapshot(provider_names)
+        snapshots = self.build_provider_quality_snapshot(provider_names)
         high_risk_providers = [
             snapshot
             for snapshot in snapshots

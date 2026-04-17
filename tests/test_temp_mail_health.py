@@ -7,7 +7,7 @@ from seedance.infra.temp_mail_health import TempMailHealthStore
 
 
 class TempMailHealthTests(unittest.TestCase):
-    def test_record_provider_result_tracks_attempt_failure_and_70_credit_stats(self) -> None:
+    def test_record_provider_result_tracks_attempt_failure_available_and_70_credit_stats(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             store = TempMailHealthStore(Path(temp_dir) / "temp_mail_health.json")
 
@@ -15,6 +15,7 @@ class TempMailHealthTests(unittest.TestCase):
                 "mail.chatgpt.org.uk",
                 success=True,
                 hard_failure=False,
+                available=True,
                 credits_observed=True,
                 credits_70=True,
             )
@@ -27,11 +28,13 @@ class TempMailHealthTests(unittest.TestCase):
 
         self.assertEqual(stats["attempt_count"], 2)
         self.assertEqual(stats["success_count"], 1)
+        self.assertEqual(stats["available_count"], 1)
         self.assertEqual(stats["hard_failure_count"], 1)
         self.assertEqual(stats["total_failure_count"], 1)
         self.assertEqual(stats["credits_observed_count"], 1)
         self.assertEqual(stats["credits_70_count"], 1)
         self.assertAlmostEqual(stats["failure_rate"], 0.5)
+        self.assertAlmostEqual(stats["available_rate"], 0.5)
         self.assertAlmostEqual(stats["credits_70_rate"], 1.0)
 
     def test_soft_failure_counts_into_failure_rate_but_not_hard_failure_penalty(self) -> None:
@@ -76,6 +79,23 @@ class TempMailHealthTests(unittest.TestCase):
         self.assertEqual(len(high_risk_providers), 1)
         self.assertEqual(high_risk_providers[0]["provider_name"], "legacy-mail")
         self.assertAlmostEqual(high_risk_providers[0]["failure_rate"], 0.5)
+
+    def test_build_provider_plan_respects_user_ratio_distribution(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            store = TempMailHealthStore(Path(temp_dir) / "temp_mail_health.json")
+            plan = store.build_provider_plan(
+                ["mail.tm", "internxt", "tempemail.cc"],
+                total_count=10,
+                provider_ratios={
+                    "mail.tm": 50,
+                    "internxt": 30,
+                    "tempemail.cc": 20,
+                },
+            )
+
+        self.assertEqual(plan.count("mail.tm"), 5)
+        self.assertEqual(plan.count("internxt"), 3)
+        self.assertEqual(plan.count("tempemail.cc"), 2)
 
 
 if __name__ == "__main__":

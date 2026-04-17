@@ -286,6 +286,7 @@ class GuiRunConfig:
     notion_enabled: bool
     browser_choice: str
     specified_email: str | None
+    provider_ratios: dict[str, int]
     stop_event: Event | None
 
 
@@ -528,6 +529,7 @@ class BatchWorker(QObject):
                     max_workers=self.run_config.max_workers,
                     browser_choice=self.run_config.browser_choice,
                     specified_email=self.run_config.specified_email,
+                    provider_ratios=self.run_config.provider_ratios,
                     notion_enabled=self.run_config.notion_enabled,
                     stop_event=self.run_config.stop_event,
                     progress_callback=self.progress.emit,
@@ -549,6 +551,7 @@ class SeedanceMainWindow(QMainWindow):
         self.watermark_worker: QObject | None = None
         self.watermark_stop_event: Event | None = None
         self._button_animations: dict[QPushButton, QVariantAnimation] = {}
+        self.provider_ratio_inputs: dict[str, QSpinBox] = {}
 
         self.setWindowTitle("拾米 - SD账号注册")
         self.resize(1360, 880)
@@ -600,8 +603,8 @@ class SeedanceMainWindow(QMainWindow):
 
         # ================================
         # 主内容区切分为三页 Tab
-        # Tab1: 账号注册概览
-        # Tab2: 账号注册实时日记
+        # Tab1: 账号注册（执行控制）
+        # Tab2: 运行概览（概览 + 实时日记）
         # Tab3: 视频去水印
         # ================================
         self.tab_widget = QTabWidget()
@@ -609,7 +612,7 @@ class SeedanceMainWindow(QMainWindow):
         root_layout.addWidget(self.tab_widget, 1)
 
         self.tab_widget.addTab(self._build_registration_tab(), "账号注册")
-        self.tab_widget.addTab(self._build_registration_log_tab(), "账号注册实时日记")
+        self.tab_widget.addTab(self._build_registration_overview_tab(), "运行概览")
         self.tab_widget.addTab(self._build_watermark_tab(), "Dreamina 去水印")
 
     def _build_registration_tab(self) -> QWidget:
@@ -619,25 +622,32 @@ class SeedanceMainWindow(QMainWindow):
         content_layout.setContentsMargins(0, 12, 0, 0)
 
         runtime_card = self._build_runtime_card()
-        summary_card = self._build_summary_card()
         runtime_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        summary_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        runtime_card.setMaximumWidth(1120)
 
         # ================================
-        # 账号注册首页只保留控制与概览
-        # 目的: 让常用操作与统计在同一屏并排展开
-        # 边界: 日记独立放到第二页，不影响现有日志流与按钮逻辑
+        # 首页只保留执行控制
+        # 目的: 把站点比例、线程与启动入口放到一个独立操作面板
+        # 边界: 运行概览与实时日记统一放到第二页展示
         # ================================
+        content_layout.addStretch(1)
         content_layout.addWidget(runtime_card, 1)
-        content_layout.addWidget(summary_card, 1)
+        content_layout.addStretch(1)
         return page
 
-    def _build_registration_log_tab(self) -> QWidget:
+    def _build_registration_overview_tab(self) -> QWidget:
         page = QWidget()
-        content_layout = QVBoxLayout(page)
+        content_layout = QHBoxLayout(page)
         content_layout.setSpacing(14)
         content_layout.setContentsMargins(0, 12, 0, 0)
-        content_layout.addWidget(self._build_log_card(), 1)
+
+        summary_card = self._build_summary_card()
+        summary_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        log_card = self._build_log_card()
+        log_card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        content_layout.addWidget(summary_card, 1)
+        content_layout.addWidget(log_card, 1)
         return page
 
     def _build_header_card(self) -> QFrame:
@@ -701,8 +711,9 @@ class SeedanceMainWindow(QMainWindow):
 
     def _build_runtime_card(self) -> QFrame:
         card = self._create_card("执行控制")
-        card.setMinimumHeight(290)
+        card.setMinimumHeight(420)
         layout = card.layout()
+        layout.setSpacing(12)
 
         self.total_count_spin = QSpinBox()
         self.total_count_spin.setRange(1, 99999)
@@ -732,7 +743,6 @@ class SeedanceMainWindow(QMainWindow):
         form_grid.setColumnStretch(0, 1)
         form_grid.setColumnStretch(1, 1)
         form_grid.setColumnStretch(2, 1)
-        layout.addLayout(form_grid)
 
         form_grid.addWidget(self._create_input_card("注册数量", self.total_count_spin, control_width=126), 0, 0)
         form_grid.addWidget(self._create_input_card("并发线程数", self.max_workers_spin, control_width=118), 0, 1)
@@ -749,12 +759,39 @@ class SeedanceMainWindow(QMainWindow):
         options_layout.addWidget(self.show_browser_checkbox)
         options_layout.addWidget(self.debug_checkbox)
         options_layout.addWidget(self.notion_checkbox)
-        layout.addLayout(options_layout)
+
+        ratio_block = QVBoxLayout()
+        ratio_block.setSpacing(6)
+        ratio_block.setContentsMargins(0, 0, 0, 0)
+        ratio_block.addWidget(self._create_field_label("邮箱站点触发比率"))
+        self.provider_ratio_total_note = self._create_note_label("总比率 0%")
+        ratio_block.addWidget(self.provider_ratio_total_note)
+
+        ratio_grid = QGridLayout()
+        ratio_grid.setHorizontalSpacing(8)
+        ratio_grid.setVerticalSpacing(8)
+        ratio_block.addLayout(ratio_grid)
+
+        self.provider_ratio_inputs = {}
+        for index, provider in enumerate(TEMP_EMAIL_PROVIDERS):
+            provider_name = provider["name"]
+            ratio_input = QSpinBox()
+            ratio_input.setRange(0, 100)
+            ratio_input.setSuffix(" %")
+            ratio_input.setFixedHeight(34)
+            ratio_input.valueChanged.connect(self._refresh_provider_ratio_total_note)
+            self.provider_ratio_inputs[provider_name] = ratio_input
+            row = index // 2
+            column = index % 2
+            ratio_grid.addWidget(
+                self._create_input_card(provider_name, ratio_input, control_width=140),
+                row,
+                column,
+            )
 
         button_row = QHBoxLayout()
         button_row.setSpacing(8)
-        button_row.setContentsMargins(0, 4, 0, 0)
-        layout.addLayout(button_row)
+        button_row.setContentsMargins(0, 0, 0, 0)
 
         self.start_button = BusyAccentButton("开始执行")
         self.start_button.setObjectName("PrimaryButton")
@@ -771,6 +808,35 @@ class SeedanceMainWindow(QMainWindow):
         button_row.addWidget(self.start_button)
         button_row.addWidget(self.stop_button)
         button_row.addStretch(1)
+
+        control_note = self._create_note_label(
+            "左侧配置基础运行参数；右侧按邮箱站点设置触发比率，所有站点合计必须等于 100%。"
+        )
+        layout.addWidget(control_note)
+
+        content_row = QHBoxLayout()
+        content_row.setSpacing(14)
+        layout.addLayout(content_row)
+
+        control_section = QVBoxLayout()
+        control_section.setSpacing(10)
+        control_section.setContentsMargins(0, 0, 0, 0)
+        content_row.addLayout(control_section, 3)
+
+        ratio_section = QVBoxLayout()
+        ratio_section.setSpacing(10)
+        ratio_section.setContentsMargins(0, 0, 0, 0)
+        content_row.addLayout(ratio_section, 2)
+
+        control_section.addWidget(self._create_field_label("基础控制"))
+        control_section.addLayout(form_grid)
+        control_section.addLayout(options_layout)
+        control_section.addStretch(1)
+        control_section.addLayout(button_row)
+
+        ratio_section.addWidget(self._create_field_label("比例控制"))
+        ratio_section.addLayout(ratio_block)
+        ratio_section.addStretch(1)
         return card
 
     def _build_summary_card(self) -> QFrame:
@@ -812,19 +878,15 @@ class SeedanceMainWindow(QMainWindow):
         )
         self.run_status_value = QLabel("待命")
         self.run_status_value.setObjectName("ValueHero")
-        self.report_path_value = self._create_note_label("尚未生成运行报告")
         self.last_result_value = self._create_note_label("最近一次运行结果将在这里显示")
-        self.quality_stats_value = self._create_note_label("尚未生成账号质量统计")
         self.network_stats_value = self._create_note_label("尚未生成网络统计")
-        self.provider_risk_value = self._create_note_label("尚未生成邮箱站点风险统计")
+        self.provider_quality_value = self._create_note_label("按邮箱站点逐条输出失败率、可用率、70积分概率")
 
         detail_layout.addLayout(self._create_value_block("当前进度", self.progress_bar))
         detail_layout.addWidget(self.progress_detail_value)
-        detail_layout.addLayout(self._create_value_block("运行报告", self.report_path_value))
         detail_layout.addLayout(self._create_value_block("结果摘要", self.last_result_value))
-        detail_layout.addLayout(self._create_value_block("账号质量统计", self.quality_stats_value))
         detail_layout.addLayout(self._create_value_block("请求量/资源量统计", self.network_stats_value))
-        detail_layout.addLayout(self._create_value_block("邮箱站点风险", self.provider_risk_value))
+        detail_layout.addLayout(self._create_value_block("邮箱站点质量（每个邮箱）", self.provider_quality_value))
         return card
 
     def _build_log_card(self) -> QFrame:
@@ -914,31 +976,71 @@ class SeedanceMainWindow(QMainWindow):
         label.setTextInteractionFlags(Qt.TextSelectableByMouse)
         return label
 
-    def _format_provider_risk_summary_html(self) -> str:
-        health_store = TempMailHealthStore(TEMP_MAIL_HEALTH_FILE)
-        high_risk_providers = health_store.list_high_risk_providers()
-        if not high_risk_providers:
-            return "暂无高风险邮箱站点"
+    def _build_default_provider_ratios(self) -> dict[str, int]:
+        provider_count = len(TEMP_EMAIL_PROVIDERS)
+        if provider_count == 0:
+            return {}
 
-        # ================================
-        # 风险展示只负责高亮问题站点
-        # 目的: 让用户在运行概览里直接看到该回避的邮箱池
-        # 边界: 红字仅用于展示，不参与健康度调度决策
-        # ================================
-        html_lines: list[str] = []
-        for snapshot in high_risk_providers:
-            metrics: list[str] = []
-            if snapshot["credits_70_rate"] > HIGH_RISK_CREDITS_70_RATE_THRESHOLD:
-                metrics.append(f"70积分概率 {snapshot['credits_70_rate'] * 100:.1f}%")
-            if snapshot["failure_rate"] > HIGH_RISK_FAILURE_RATE_THRESHOLD:
-                metrics.append(f"失败率 {snapshot['failure_rate'] * 100:.1f}%")
-            metrics.append(f"样本 {snapshot['attempt_count']}")
-            line_text = f"{snapshot['provider_name']} | {' | '.join(metrics)}"
-            html_lines.append(f'<span style="color: #A85448;">{html.escape(line_text)}</span>')
+        base_ratio = 100 // provider_count
+        remainder = 100 % provider_count
+        default_ratios: dict[str, int] = {}
+        for index, provider in enumerate(TEMP_EMAIL_PROVIDERS):
+            provider_name = provider["name"]
+            default_ratios[provider_name] = base_ratio + (1 if index < remainder else 0)
+        return default_ratios
+
+    def _refresh_provider_ratio_total_note(self) -> None:
+        total_ratio = sum(input_widget.value() for input_widget in self.provider_ratio_inputs.values())
+        color = "#5D7052" if total_ratio == 100 else "#A85448"
+        self.provider_ratio_total_note.setText(
+            f'<span style="color: {color};">总比率 {total_ratio}%（必须等于 100%）</span>'
+        )
+
+    def _collect_provider_ratios(self) -> dict[str, int]:
+        return {
+            provider_name: input_widget.value()
+            for provider_name, input_widget in self.provider_ratio_inputs.items()
+        }
+
+    def _validate_provider_ratios(self) -> bool:
+        provider_ratios = self._collect_provider_ratios()
+        total_ratio = sum(provider_ratios.values())
+        if total_ratio != 100:
+            QMessageBox.warning(
+                self,
+                "邮箱站点比例错误",
+                f"当前邮箱站点触发比率合计为 {total_ratio}%，必须等于 100% 才能开始执行。",
+            )
+            return False
+        return True
+
+    def _format_provider_quality_summary_html(self) -> str:
+        health_store = TempMailHealthStore(TEMP_MAIL_HEALTH_FILE)
+        snapshots = health_store.build_provider_quality_snapshot(
+            [provider["name"] for provider in TEMP_EMAIL_PROVIDERS]
+        )
+
+        html_lines: list[str] = [
+            '<span style="color: #6D6A5F;">按邮箱站点逐条统计：失败率 / 可用率 / 70积分概率</span>'
+        ]
+        for snapshot in snapshots:
+            line_text = (
+                f"{snapshot['provider_name']} | "
+                f"失败率 {snapshot['failure_rate'] * 100:.1f}% | "
+                f"可用率 {snapshot['available_rate'] * 100:.1f}% | "
+                f"70积分概率 {snapshot['credits_70_rate'] * 100:.1f}% | "
+                f"样本 {snapshot['attempt_count']}"
+            )
+            is_high_risk = (
+                snapshot["failure_rate"] > HIGH_RISK_FAILURE_RATE_THRESHOLD
+                or snapshot["credits_70_rate"] > HIGH_RISK_CREDITS_70_RATE_THRESHOLD
+            )
+            color = "#A85448" if is_high_risk else "#3A392F"
+            html_lines.append(f'<span style="color: {color};">{html.escape(line_text)}</span>')
         return "<br>".join(html_lines)
 
-    def _refresh_provider_risk_summary(self) -> None:
-        self.provider_risk_value.setText(self._format_provider_risk_summary_html())
+    def _refresh_provider_quality_summary(self) -> None:
+        self.provider_quality_value.setText(self._format_provider_quality_summary_html())
 
     def _create_value_block(self, label_text: str, value_widget: QWidget) -> QVBoxLayout:
         layout = QVBoxLayout()
@@ -967,11 +1069,13 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"0 / {DEFAULT_TOTAL_COUNT}")
         self.progress_detail_value.setText(f"已完成 0 / {DEFAULT_TOTAL_COUNT}，运行中 0，待开始 {DEFAULT_TOTAL_COUNT}")
-        self.report_path_value.setText("尚未生成运行报告")
         self.last_result_value.setText("最近一次运行结果将在这里显示")
-        self.quality_stats_value.setText("尚未生成账号质量统计")
         self.network_stats_value.setText("尚未生成网络统计")
-        self._refresh_provider_risk_summary()
+        default_provider_ratios = self._build_default_provider_ratios()
+        for provider_name, ratio_input in self.provider_ratio_inputs.items():
+            ratio_input.setValue(default_provider_ratios.get(provider_name, 0))
+        self._refresh_provider_ratio_total_note()
+        self._refresh_provider_quality_summary()
         self._set_button_locked_state(self.start_button, False)
         self._set_button_locked_state(self.stop_button, True)
 
@@ -1156,6 +1260,7 @@ class SeedanceMainWindow(QMainWindow):
             notion_enabled=self.notion_checkbox.isChecked(),
             browser_choice=selected_browser,
             specified_email=selected_provider,
+            provider_ratios=self._collect_provider_ratios(),
             stop_event=self.stop_event,
         )
 
@@ -1199,6 +1304,8 @@ class SeedanceMainWindow(QMainWindow):
         self.debug_checkbox.setDisabled(running)
         self.notion_checkbox.setDisabled(running)
         self.notion_settings_button.setDisabled(running)
+        for ratio_input in self.provider_ratio_inputs.values():
+            ratio_input.setDisabled(running)
         self.run_status_value.setText("执行中" if running else "待命")
 
     def stop_run(self) -> None:
@@ -1217,6 +1324,9 @@ class SeedanceMainWindow(QMainWindow):
 
     def start_run(self) -> None:
         if self.worker_thread and self.worker_thread.isRunning():
+            return
+
+        if not self._validate_provider_ratios():
             return
 
         if not self._ensure_notion_ready():
@@ -1238,11 +1348,9 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setValue(0)
         self.progress_bar.setFormat(f"0 / {run_config.total_count}")
         self.progress_detail_value.setText(f"已完成 0 / {run_config.total_count}，运行中 0，待开始 {run_config.total_count}")
-        self.report_path_value.setText("运行中，报告生成后会显示在这里")
         self.last_result_value.setText("任务已启动，等待批量结果...")
-        self.quality_stats_value.setText("运行中，账号质量统计将在批次结束后汇总")
         self.network_stats_value.setText("运行中，网络统计将在批次结束后汇总")
-        self.provider_risk_value.setText("运行中，邮箱站点风险将在批次结束后刷新")
+        self.provider_quality_value.setText("运行中，邮箱站点质量将在批次结束后刷新")
         self.start_button.setText("正在执行")
         self._set_button_busy_state(self.start_button, True)
         self._set_button_busy_state(self.stop_button, False)
@@ -1282,9 +1390,6 @@ class SeedanceMainWindow(QMainWindow):
         self.progress_bar.setValue(summary.total_count)
         self.progress_bar.setFormat(f"{summary.total_count} / {summary.total_count}")
         self.progress_detail_value.setText(f"已完成 {summary.total_count} / {summary.total_count}，运行中 0，待开始 0")
-        self.report_path_value.setText(
-            f"JSON: {summary.json_report_path}\nCSV: {summary.csv_report_path}\nNOTION_FAIL: {summary.notion_failures_path}"
-        )
         summary_text = (
             f"总计 {summary.total_count} 个任务，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.2f} 秒。"
         )
@@ -1293,32 +1398,6 @@ class SeedanceMainWindow(QMainWindow):
                 f"运行已打断，已完成 {summary.total_count} 个任务，成功 {summary.success_count}，失败 {summary.fail_count}，耗时 {summary.duration_seconds:.2f} 秒。"
             )
         self.last_result_value.setText(summary_text)
-        quality_order = (
-            "usable",
-            "credits_70",
-            "missing_sessionid",
-            "missing_suffix_zero",
-            "missing_credits",
-            "china_blocked",
-            "other_credits",
-            "task_failed",
-        )
-        quality_labels = {
-            "usable": "标准可用",
-            "credits_70": "70积分不可用",
-            "missing_sessionid": "0积分缺Sessionid",
-            "missing_suffix_zero": "0积分尾部非0",
-            "missing_credits": "积分缺失",
-            "china_blocked": "China过滤",
-            "other_credits": "其他积分异常",
-            "task_failed": "任务失败",
-        }
-        quality_parts = []
-        for key in quality_order:
-            count = summary.account_quality_counts.get(key, 0)
-            if count:
-                quality_parts.append(f"{quality_labels[key]} {count}")
-        self.quality_stats_value.setText(" / ".join(quality_parts) or "未生成账号质量统计")
         network_megabytes = summary.network_transferred_bytes / (1024 * 1024)
         request_type_text = " / ".join(
             f"{key}:{value}" for key, value in sorted(summary.network_request_type_counts.items())
@@ -1327,7 +1406,7 @@ class SeedanceMainWindow(QMainWindow):
             f"请求 {summary.network_request_count}，响应 {summary.network_response_count}，失败请求 {summary.network_failed_request_count}，"
             f"累计资源 {network_megabytes:.2f} MB\n类型分布：{request_type_text}"
         )
-        self._refresh_provider_risk_summary()
+        self._refresh_provider_quality_summary()
         self.append_log("GUI 执行完毕，统计卡片已刷新。")
         self._append_notion_failure_summary(summary.notion_failures_path)
         self._set_running_state(False)
@@ -1343,7 +1422,7 @@ class SeedanceMainWindow(QMainWindow):
     def _handle_run_failed(self, error_message: str) -> None:
         self.last_result_value.setText(f"启动失败：{error_message}")
         self.network_stats_value.setText("启动失败，未生成网络统计")
-        self._refresh_provider_risk_summary()
+        self._refresh_provider_quality_summary()
         self.append_log(f"GUI 执行失败: {error_message}")
         QMessageBox.critical(self, "执行失败", error_message)
         self._set_running_state(False)

@@ -135,6 +135,10 @@
   - 所有站点保留基础出场机会
   - 健康站点会在轮盘 bonus 段获得更高优先级
   - 只有邮箱相关硬失败才会降低站点健康度
+- GUI 当前支持显式配置每个邮箱站点的触发比率：
+  - 所有站点比率之和必须为 `100%`
+  - 配置后随机调度优先按用户比率分配任务，不再额外套健康度 bonus 轮盘
+  - 若用户未提供比例，仍走原有健康度轮盘
 - 当前启用的站点池为：
   - `mail.tm`
   - `tempmail.lol`
@@ -233,11 +237,12 @@
   - `network_request_type_counts`
 - `temp_mail_health.json` 当前已额外记录：
   - `attempt_count`
+  - `available_count`
   - `total_failure_count`
   - `credits_observed_count`
   - `credits_70_count`
   - 其中调度仍只使用 `success_count / failure_count / consecutive_failures`
-  - `运行概览` 红字风险提示使用 `70积分概率` 与 `总失败率`
+  - `运行概览` 站点质量列表使用 `失败率 / 可用率 / 70积分概率`
 - 报告明细会同时记录每条任务的保存结果：
   - `notion_ok`
   - `notion_skipped`

@@ -19,6 +19,7 @@ class RuntimeOptions:
     max_workers: int
     browser_choice: str = "auto"
     specified_email: Optional[str] = None
+    provider_ratios: Optional[dict[str, int]] = None
     notion_enabled: Optional[bool] = None
     stop_event: Optional[Event] = None
 

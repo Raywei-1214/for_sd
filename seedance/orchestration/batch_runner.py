@@ -148,6 +148,7 @@ def _build_provider_plan(
     provider_plan = TempMailHealthStore(TEMP_MAIL_HEALTH_FILE).build_provider_plan(
         provider_names,
         total_count=total_count,
+        provider_ratios=runtime_options.provider_ratios,
     )
 
     logger.info("本次邮箱站点调度: %s", ", ".join(provider_plan))
@@ -167,6 +168,7 @@ def _update_provider_health(results: list[RegistrationResult]) -> None:
                 result.provider_name,
                 success=True,
                 hard_failure=False,
+                available=result.account_quality == "usable",
                 credits_observed=credits_value is not None,
                 credits_70=credits_value == 70,
             )
@@ -303,6 +305,7 @@ def main(
     max_workers: int = DEFAULT_MAX_WORKERS,
     browser_choice: str = "auto",
     specified_email: str | None = None,
+    provider_ratios: dict[str, int] | None = None,
     notion_enabled: bool | None = None,
     stop_event = None,
     progress_callback=None,
@@ -319,6 +322,7 @@ def main(
         max_workers=max_workers,
         browser_choice=browser_choice,
         specified_email=specified_email,
+        provider_ratios=provider_ratios,
         notion_enabled=notion_enabled,
         stop_event=stop_event,
     )
@@ -338,6 +342,12 @@ def main(
     logger.info("🔇 无头模式已启用（浏览器在后台运行，不显示窗口）" if headless else "🖥️ 显示浏览器窗口")
     logger.info("☁️ Notion 同步: 开启" if runtime_options.notion_enabled else "🗂️ Notion 同步: 关闭，仅保留本地输出")
     logger.info(f"🌐 浏览器模式: {runtime_options.browser_choice}")
+    if runtime_options.provider_ratios:
+        ratio_text = " / ".join(
+            f"{provider_name}:{ratio}%"
+            for provider_name, ratio in runtime_options.provider_ratios.items()
+        )
+        logger.info(f"📊 邮箱站点比例: {ratio_text}")
 
     if debug_mode:
         logger.info("📷 调试模式已启用（将保存截图）")
