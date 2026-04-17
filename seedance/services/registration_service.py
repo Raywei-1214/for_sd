@@ -36,6 +36,7 @@ from seedance.core.config import (
     PROBE_BALANCE_SELECTORS,
     PROBE_GENERATE_BUTTON_SELECTORS,
     PROBE_BLOCKED_TEXT_MARKERS,
+    PROBE_BLOCKED_URL_MARKERS,
     PROBE_MODEL_DROPDOWN_SELECTOR,
     PROBE_MODEL_DROPDOWN_TEXT,
     PROBE_MODEL_OPTION_SELECTOR,
@@ -291,7 +292,9 @@ class RegistrationService:
             return False
 
         context_text = page_context.lower()
-        return any(marker in context_text for marker in PROBE_BLOCKED_TEXT_MARKERS)
+        return any(marker in context_text for marker in PROBE_BLOCKED_TEXT_MARKERS) or any(
+            marker in context_text for marker in PROBE_BLOCKED_URL_MARKERS
+        )
 
     def _has_numeric_probe_signal(
         self,
@@ -319,21 +322,9 @@ class RegistrationService:
         # ================================
         # 只有 probe 落在首页壳子时，才执行一次轻量工作区引导
         # 目的: 尽量通过页面内点击进入视频工作区，避免反复 goto 增加流量
-        # 边界: 这里只做 Create / Start Creating / AI Video 三类入口点击，不重复注册链路动作
+        # 边界: 这里只做 Start Creating / AI Video 两类入口点击，避免误入 agentic 工作区
         # ================================
         action_taken = False
-
-        create_clicked = await self._click_first_visible(
-            page,
-            CREATE_MENU_SELECTORS,
-            timeout=3000,
-        )
-        if not create_clicked:
-            create_clicked = await self._click_text_locator(page, "Create", timeout=3000)
-        if create_clicked:
-            action_taken = True
-            await asyncio.sleep(1)
-            await self._dismiss_probe_blockers(page)
 
         start_creating_clicked = await self._click_first_visible(
             page,

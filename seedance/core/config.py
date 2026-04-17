@@ -15,11 +15,16 @@ IP_COUNTRY_URL = "http://ip-api.com/json/?fields=country"
 
 TEMP_EMAIL_PROVIDERS = [
     {"name": "mail.tm", "url": "https://mail.tm/zh/"},
-    {"name": "10minutemail.net", "url": "https://10minutemail.net/"},
     {"name": "tempmail.lol", "url": "https://tempmail.lol/"},
     {"name": "internxt", "url": "https://internxt.com/temporary-email"},
-    {"name": "guerrillamail", "url": "https://www.guerrillamail.com/"},
     {"name": "tempemail.cc", "url": "https://www.tempemail.cc/fr"},
+    # ================================
+    # 70 积分占比过高，当前轮次先停用
+    # 目的: 降低无效站点对整体可用率和流量的消耗
+    # 边界: 只从启用池移除，不删除适配器实现，方便后续恢复观察
+    # ================================
+    # {"name": "10minutemail.net", "url": "https://10minutemail.net/"},
+    # {"name": "guerrillamail", "url": "https://www.guerrillamail.com/"},
 ]
 
 DEFAULT_TOTAL_COUNT = 999
@@ -194,6 +199,10 @@ PROBE_BLOCKED_TEXT_MARKERS = (
     "ai agent auto trends",
     "see the prompt guide",
     "1080p is now available",
+)
+PROBE_BLOCKED_URL_MARKERS = (
+    "/ai-tool/generate",
+    "type=agentic",
 )
 PROBE_VIDEO_ENTRY_SELECTORS = (
     "a[href*='type=video']",

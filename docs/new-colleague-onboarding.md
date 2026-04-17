@@ -345,9 +345,10 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 补一条当前 `probe` 规则，排查 `missing_suffix_zero / missing_credits` 时要注意：
 
 - 如果页面还停在 `Sign in / AI Agent Auto / Creative Partner Program / 1080P banner` 这类首页壳子
+- 或者 URL 已经跳到 `agentic / generate` 页面
 - 或者只看到了按钮文本、没采到数值型 `credits/cost`
 
-这轮采样都会被判成无效，流程会先尝试 `Create / Start Creating / AI Video` 轻量进入视频工作区；如果第一次采样后仍停在壳子里，会在同次导航内再补一次页面内引导，然后再决定是否重试。
+这轮采样都会被判成无效，流程会先尝试 `Start Creating / AI Video` 轻量进入视频工作区；如果第一次采样后仍停在壳子里，会在同次导航内再补一次页面内引导，然后再决定是否重试。
 
 ## 新同事建议的接手顺序
 

@@ -152,6 +152,12 @@ class NotionRulesTests(unittest.TestCase):
                 "url=https://dreamina.capcut.com | body=Explore Create Assets Canvas 0 Upgrade Start Creating With AI Agent AI Image",
             )
         )
+        self.assertTrue(
+            RegistrationService._is_probe_context_blocked(
+                service,
+                "url=https://dreamina.capcut.com/ai-tool/generate?type=agentic&workspace=0 | body=Explore Create Assets Canvas 0 Upgrade",
+            )
+        )
 
     def test_numeric_probe_signal_requires_credits_or_cost(self) -> None:
         service = RegistrationService.__new__(RegistrationService)

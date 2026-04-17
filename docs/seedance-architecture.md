@@ -22,7 +22,7 @@
   - 负责目录扫描、视频时长预检、去水印串行调度与 JSON 运行报告输出。
 - `seedance/services/registration_service.py`
   - 负责 Dreamina 注册主流程、积分探测、`sessionid` 抓取。
-  - `probe` 当前会先识别首页壳子，再按需执行 `Create / Start Creating / AI Video` 轻量引导；如果首次采样后仍停在壳子里，会在同次导航内补一次页面内引导后再采，不额外增加外网导航次数。
+  - `probe` 当前只保留视频工作区采样路径：命中首页壳子后只尝试 `Start Creating / AI Video`，并显式屏蔽 `agentic / generate` 页面；如果首次采样后仍停在壳子里，会在同次导航内补一次页面内引导后再采，不额外增加外网导航次数。
 - `seedance/services/watermark_service.py`
   - 负责单视频去水印调用、异常归一与结果对象构造。
 - `seedance/services/email_service.py`
@@ -137,11 +137,15 @@
   - 只有邮箱相关硬失败才会降低站点健康度
 - 当前启用的站点池为：
   - `mail.tm`
-  - `10minutemail.net`
   - `tempmail.lol`
   - `internxt`
-  - `guerrillamail`
   - `tempemail.cc`
+- `10minutemail.net` 当前已暂停：
+  - 最近多轮 `70积分` 占比过高
+  - 当前先从启用池移除，避免继续消耗流量
+- `guerrillamail` 当前已暂停：
+  - 最近多轮 `70积分` 占比偏高
+  - 当前先从启用池移除，后续再决定是否恢复观察
 - `crazymailing` 当前已停用：
   - 多次命中 Cloudflare 安全验证页
   - 当前主要问题是风控，不是单纯 selector 失效
@@ -152,7 +156,7 @@
   - 验证码阶段会先刷新收件箱，再尝试点开 `Dreamina / CapCut / verification` 相关邮件正文
   - Internxt 的验证码等待窗口会比普通站点更长，避免把慢收件箱过早判成失败
   - 最后再从短文本节点和正文文本中提取真实邮箱与验证码
-- `guerrillamail` 当前已补专用提取逻辑：
+- `guerrillamail` 虽已补专用提取逻辑，但当前暂停：
   - 优先读取 `#email-widget`
   - 其次读取 `input[name='show_email']`
   - 最后回退到 `#inbox-id + #gm-host-select` 组合邮箱
@@ -160,10 +164,10 @@
   - 其首页需要先触发 `create/random` 才会创建邮箱
   - 但当前真实站点在该路径返回空白页
   - 这说明它不只是旧适配器过期，还存在站点端流程不可用问题
-- `10minutemail.net` 当前已补超时错误页识别：
+- `10minutemail.net` 虽已补超时错误页识别，但当前暂停：
   - 若页面落到 `chrome-error://` 或出现 `ERR_CONNECTION_TIMED_OUT`
   - 会直接判定为加载失败并重试，而不是误当成“页面已打开”
-- `10minutemail.net` 当前已补专用验证码链路：
+- `10minutemail.net` 虽已补专用验证码链路，但当前暂停：
   - 邮箱地址优先读取 `#fe_text` 与复制按钮 `data-clipboard-text`
   - 验证码阶段优先触发站内 `updatemailbox()` 轻刷新
   - 再尝试点开 `Dreamina / CapCut / verification / code` 相关邮件预览
