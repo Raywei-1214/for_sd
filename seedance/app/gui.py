@@ -552,6 +552,7 @@ class SeedanceMainWindow(QMainWindow):
         self.watermark_stop_event: Event | None = None
         self._button_animations: dict[QPushButton, QVariantAnimation] = {}
         self.provider_ratio_inputs: dict[str, QSpinBox] = {}
+        self._provider_ratio_restore_snapshot: dict[str, int] | None = None
         self._is_loading_provider_ratios = False
 
         self.setWindowTitle("拾米 - SD账号注册")
@@ -798,6 +799,27 @@ class SeedanceMainWindow(QMainWindow):
                 column,
             )
 
+        ratio_action_row = QHBoxLayout()
+        ratio_action_row.setSpacing(8)
+        ratio_action_row.setContentsMargins(0, 2, 0, 0)
+
+        self.equalize_ratio_button = QPushButton("概率均分")
+        self.equalize_ratio_button.setObjectName("SecondaryButton")
+        self.equalize_ratio_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.equalize_ratio_button.setMinimumWidth(108)
+        self.equalize_ratio_button.clicked.connect(self._apply_equal_provider_ratios)
+
+        self.restore_ratio_button = QPushButton("概率复原默认")
+        self.restore_ratio_button.setObjectName("SecondaryButton")
+        self.restore_ratio_button.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.restore_ratio_button.setMinimumWidth(132)
+        self.restore_ratio_button.clicked.connect(self._restore_provider_ratios_before_equalize)
+
+        ratio_action_row.addWidget(self.equalize_ratio_button)
+        ratio_action_row.addWidget(self.restore_ratio_button)
+        ratio_action_row.addStretch(1)
+        ratio_block.addLayout(ratio_action_row)
+
         button_row = QHBoxLayout()
         button_row.setSpacing(8)
         button_row.setContentsMargins(0, 0, 0, 0)
@@ -1028,17 +1050,79 @@ class SeedanceMainWindow(QMainWindow):
         return label
 
     def _build_default_provider_ratios(self) -> dict[str, int]:
+        provider_names = [provider["name"] for provider in TEMP_EMAIL_PROVIDERS]
+        if not provider_names:
+            return {}
+
+        preferred_ratios = {
+            "mail.chatgpt.org.uk": 60,
+            "tempmail.lol": 20,
+        }
+        default_ratios = {provider_name: 0 for provider_name in provider_names}
+        allocated_ratio = 0
+
+        # ================================
+        # 默认比例优先向核心站点倾斜
+        # 目的: 让冷启动配置直接贴合当前项目的主力站点策略
+        # 边界: 仅在无历史配置或历史配置失效时生效，不覆盖用户已保存的自定义比例
+        # ================================
+        for provider_name, preferred_ratio in preferred_ratios.items():
+            if provider_name in default_ratios:
+                default_ratios[provider_name] = preferred_ratio
+                allocated_ratio += preferred_ratio
+
+        remaining_providers = [
+            provider_name
+            for provider_name in provider_names
+            if provider_name not in preferred_ratios
+        ]
+        remaining_ratio = 100 - allocated_ratio
+        if remaining_ratio < 0:
+            return self._build_equal_provider_ratios()
+
+        if not remaining_providers:
+            return default_ratios if allocated_ratio == 100 else self._build_equal_provider_ratios()
+
+        base_ratio = remaining_ratio // len(remaining_providers)
+        remainder = remaining_ratio % len(remaining_providers)
+        for index, provider_name in enumerate(remaining_providers):
+            default_ratios[provider_name] = base_ratio + (1 if index < remainder else 0)
+        return default_ratios
+
+    def _build_equal_provider_ratios(self) -> dict[str, int]:
         provider_count = len(TEMP_EMAIL_PROVIDERS)
         if provider_count == 0:
             return {}
 
         base_ratio = 100 // provider_count
         remainder = 100 % provider_count
-        default_ratios: dict[str, int] = {}
+        equal_ratios: dict[str, int] = {}
         for index, provider in enumerate(TEMP_EMAIL_PROVIDERS):
             provider_name = provider["name"]
-            default_ratios[provider_name] = base_ratio + (1 if index < remainder else 0)
-        return default_ratios
+            equal_ratios[provider_name] = base_ratio + (1 if index < remainder else 0)
+        return equal_ratios
+
+    def _normalize_provider_ratios(
+        self,
+        raw_ratios: dict[str, int] | None,
+        *,
+        require_total_100: bool,
+    ) -> dict[str, int] | None:
+        if not isinstance(raw_ratios, dict):
+            return None
+
+        normalized_ratios: dict[str, int] = {}
+        for provider in TEMP_EMAIL_PROVIDERS:
+            provider_name = provider["name"]
+            raw_ratio = raw_ratios.get(provider_name, 0)
+            try:
+                normalized_ratios[provider_name] = max(0, min(100, int(raw_ratio)))
+            except (TypeError, ValueError):
+                normalized_ratios[provider_name] = 0
+
+        if require_total_100 and sum(normalized_ratios.values()) != 100:
+            return None
+        return normalized_ratios
 
     def _refresh_provider_ratio_total_note(self) -> None:
         total_ratio = sum(input_widget.value() for input_widget in self.provider_ratio_inputs.values())
@@ -1047,13 +1131,27 @@ class SeedanceMainWindow(QMainWindow):
             f'<span style="color: {color};">总比率 {total_ratio}%（必须等于 100%）</span>'
         )
 
-    def _save_provider_ratios_to_browser_config(self) -> None:
+    def _save_provider_ratio_preferences_to_browser_config(
+        self,
+        *,
+        quiet: bool = True,
+        browser_choice: str | None = None,
+    ) -> None:
         if self._is_loading_provider_ratios:
             return
 
         browser_config = load_browser_config()
+        if browser_choice is not None:
+            browser_config["browser_choice"] = browser_choice
         browser_config["provider_ratios"] = self._collect_provider_ratios()
-        save_browser_config(browser_config, quiet=True)
+        if self._provider_ratio_restore_snapshot is None:
+            browser_config.pop("provider_ratios_restore_snapshot", None)
+        else:
+            browser_config["provider_ratios_restore_snapshot"] = self._provider_ratio_restore_snapshot
+        save_browser_config(browser_config, quiet=quiet)
+
+    def _save_provider_ratios_to_browser_config(self) -> None:
+        self._save_provider_ratio_preferences_to_browser_config()
 
     def _handle_provider_ratio_changed(self) -> None:
         self._refresh_provider_ratio_total_note()
@@ -1061,22 +1159,64 @@ class SeedanceMainWindow(QMainWindow):
 
     def _load_provider_ratios_from_browser_config(self) -> dict[str, int]:
         browser_config = load_browser_config()
-        saved_ratios = browser_config.get("provider_ratios")
-        if not isinstance(saved_ratios, dict):
-            return self._build_default_provider_ratios()
-
-        normalized_ratios: dict[str, int] = {}
-        for provider in TEMP_EMAIL_PROVIDERS:
-            provider_name = provider["name"]
-            raw_ratio = saved_ratios.get(provider_name, 0)
-            try:
-                normalized_ratios[provider_name] = max(0, min(100, int(raw_ratio)))
-            except (TypeError, ValueError):
-                normalized_ratios[provider_name] = 0
-
-        if sum(normalized_ratios.values()) != 100:
+        normalized_ratios = self._normalize_provider_ratios(
+            browser_config.get("provider_ratios"),
+            require_total_100=True,
+        )
+        if normalized_ratios is None:
             return self._build_default_provider_ratios()
         return normalized_ratios
+
+    def _load_provider_ratio_restore_snapshot_from_browser_config(self) -> dict[str, int] | None:
+        browser_config = load_browser_config()
+        return self._normalize_provider_ratios(
+            browser_config.get("provider_ratios_restore_snapshot"),
+            require_total_100=False,
+        )
+
+    def _apply_provider_ratio_values(self, provider_ratios: dict[str, int]) -> None:
+        normalized_ratios = self._normalize_provider_ratios(
+            provider_ratios,
+            require_total_100=False,
+        )
+        if normalized_ratios is None:
+            return
+
+        self._is_loading_provider_ratios = True
+        try:
+            for provider_name, ratio_input in self.provider_ratio_inputs.items():
+                ratio_input.setValue(normalized_ratios.get(provider_name, 0))
+        finally:
+            self._is_loading_provider_ratios = False
+        self._refresh_provider_ratio_total_note()
+
+    def _refresh_restore_ratio_button_state(self) -> None:
+        self.restore_ratio_button.setDisabled(self._provider_ratio_restore_snapshot is None)
+
+    def _apply_equal_provider_ratios(self) -> None:
+        current_ratios = self._collect_provider_ratios()
+        target_ratios = self._build_equal_provider_ratios()
+        if current_ratios != target_ratios:
+            self._provider_ratio_restore_snapshot = current_ratios.copy()
+
+        # ================================
+        # 均分按钮只做“一键切换”
+        # 目的: 让用户快速切到全站均分，同时保留一次可回退的原始比例快照
+        # 边界: 若当前本来就是均分，不覆盖已有回退快照
+        # ================================
+        self._apply_provider_ratio_values(target_ratios)
+        self._refresh_restore_ratio_button_state()
+        self._save_provider_ratio_preferences_to_browser_config()
+
+    def _restore_provider_ratios_before_equalize(self) -> None:
+        if self._provider_ratio_restore_snapshot is None:
+            return
+
+        snapshot = self._provider_ratio_restore_snapshot.copy()
+        self._apply_provider_ratio_values(snapshot)
+        self._provider_ratio_restore_snapshot = None
+        self._refresh_restore_ratio_button_state()
+        self._save_provider_ratio_preferences_to_browser_config()
 
     def _collect_provider_ratios(self) -> dict[str, int]:
         return {
@@ -1163,11 +1303,9 @@ class SeedanceMainWindow(QMainWindow):
         self.last_result_value.setText("最近一次运行结果将在这里显示")
         self.network_stats_value.setText("尚未生成网络统计")
         provider_ratios = self._load_provider_ratios_from_browser_config()
-        self._is_loading_provider_ratios = True
-        for provider_name, ratio_input in self.provider_ratio_inputs.items():
-            ratio_input.setValue(provider_ratios.get(provider_name, 0))
-        self._is_loading_provider_ratios = False
-        self._refresh_provider_ratio_total_note()
+        self._provider_ratio_restore_snapshot = self._load_provider_ratio_restore_snapshot_from_browser_config()
+        self._apply_provider_ratio_values(provider_ratios)
+        self._refresh_restore_ratio_button_state()
         self._refresh_provider_quality_summary()
         self._set_button_locked_state(self.start_button, False)
         self._set_button_locked_state(self.stop_button, True)
@@ -1425,10 +1563,10 @@ class SeedanceMainWindow(QMainWindow):
         if not self._ensure_notion_ready():
             return
 
-        browser_config = load_browser_config()
-        browser_config["browser_choice"] = self.browser_combo.currentData() or "auto"
-        browser_config["provider_ratios"] = self._collect_provider_ratios()
-        save_browser_config(browser_config)
+        self._save_provider_ratio_preferences_to_browser_config(
+            quiet=False,
+            browser_choice=self.browser_combo.currentData() or "auto",
+        )
 
         self.stop_event = Event()
         run_config = self._build_run_config()

@@ -138,6 +138,7 @@ class BrowserConfig:
     browser_path: Optional[str] = None
     email_choice: Optional[str] = None
     provider_ratios: Optional[dict[str, int]] = None
+    provider_ratios_restore_snapshot: Optional[dict[str, int]] = None
     notion_enabled: Optional[bool] = None
 
 
