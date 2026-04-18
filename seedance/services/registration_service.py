@@ -494,6 +494,18 @@ class RegistrationService:
             aria_disabled = await node.get_attribute("aria-disabled")
             if (aria_disabled or "").strip().lower() in {"true", "1"}:
                 return False
+            aria_busy = await node.get_attribute("aria-busy")
+            if (aria_busy or "").strip().lower() in {"true", "1"}:
+                return False
+            data_state = (await node.get_attribute("data-state") or "").strip().lower()
+            if data_state in {"disabled", "loading", "submitting", "pending"}:
+                return False
+            class_name = (await node.get_attribute("class") or "").strip().lower()
+            if any(
+                marker in class_name
+                for marker in ("disabled", "loading", "submitting", "pending")
+            ):
+                return False
             return True
         except Exception:
             return False
@@ -525,7 +537,6 @@ class RegistrationService:
             return False
 
     async def _click_signup_continue(self, page: Page, timeout: int = 10000) -> bool:
-        fallback_node = None
         for selector in CONTINUE_BUTTON_SELECTORS:
             try:
                 candidates = await page.query_selector_all(selector)
@@ -541,19 +552,56 @@ class RegistrationService:
                     if await self._is_signup_continue_candidate(node):
                         await node.click(timeout=timeout)
                         return True
-                    if fallback_node is None:
-                        fallback_node = node
                 except Exception:
                     continue
 
-        if fallback_node is None:
-            return False
+        return False
+
+    async def _has_signup_ready_continue(self, page: Page) -> bool:
+        # ================================
+        # Continue 不是可见就算 ready
+        # 目的: 只有注册表单内、且真正可提交的 Continue 才允许进入点击阶段
+        # 边界: 不再退回全页 fallback，避免误点首页壳子里的同名按钮
+        # ================================
+        for selector in CONTINUE_BUTTON_SELECTORS:
+            try:
+                candidates = await page.query_selector_all(selector)
+            except Exception:
+                continue
+
+            for node in candidates:
+                try:
+                    if not await node.is_visible():
+                        continue
+                    if not await self._is_node_enabled(node):
+                        continue
+                    if await self._is_signup_continue_candidate(node):
+                        return True
+                except Exception:
+                    continue
+
+        return False
+
+    async def _settle_signup_form_submission(self, page: Page, password_input) -> None:
+        # ================================
+        # 前端注册表单会在失焦后才完成校验态切换
+        # 目的: 填完密码后显式触发一次失焦，并等待 Continue 进入可提交态
+        # 边界: 这里只做表单状态收敛，不负责真正提交
+        # ================================
+        try:
+            await password_input.press("Tab")
+        except Exception:
+            pass
 
         try:
-            await fallback_node.click(timeout=timeout)
-            return True
+            await password_input.evaluate("(el) => el.blur()")
         except Exception:
-            return False
+            pass
+
+        for _ in range(max(FORM_SETTLE_WAIT_SECONDS + 1, 2)):
+            if await self._has_signup_ready_continue(page):
+                return
+            await asyncio.sleep(1)
 
     async def _click_button_by_text(
         self,
@@ -1250,7 +1298,7 @@ class RegistrationService:
             self._fail_step(result, RegistrationStep.FILL_CREDENTIALS, "密码输入框不存在")
             return False
         await password_input.fill(self.temp_email_service.password or "")
-        await asyncio.sleep(max(FORM_SETTLE_WAIT_SECONDS - 1, 0))
+        await self._settle_signup_form_submission(page, password_input)
         return True
 
     async def _submit_credentials(self, page: Page, result: RegistrationResult) -> bool:

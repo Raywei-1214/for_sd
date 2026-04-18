@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
+from seedance.core.config import EMAIL_INPUT_SELECTORS, PASSWORD_INPUT_SELECTORS
 from seedance.core.models import RegistrationResult
 from seedance.core.notion_rules import (
     NOTION_SYNC_SUFFIX,
@@ -100,11 +101,17 @@ class FakeButtonNode:
         visible: bool = True,
         disabled: str | None = None,
         aria_disabled: str | None = None,
+        aria_busy: str | None = None,
+        class_name: str | None = None,
+        data_state: str | None = None,
         signup_candidate: bool = False,
     ) -> None:
         self.visible = visible
         self.disabled = disabled
         self.aria_disabled = aria_disabled
+        self.aria_busy = aria_busy
+        self.class_name = class_name
+        self.data_state = data_state
         self.signup_candidate = signup_candidate
         self.clicked = False
 
@@ -116,6 +123,12 @@ class FakeButtonNode:
             return self.disabled
         if name == "aria-disabled":
             return self.aria_disabled
+        if name == "aria-busy":
+            return self.aria_busy
+        if name == "class":
+            return self.class_name
+        if name == "data-state":
+            return self.data_state
         return None
 
     async def evaluate(self, _script: str):
@@ -132,6 +145,56 @@ class SubmitButtonPage:
 
     async def query_selector_all(self, selector: str):
         return list(self.selector_nodes.get(selector, []))
+
+
+class FakePasswordInput:
+    def __init__(self) -> None:
+        self.filled = None
+        self.tab_pressed = False
+        self.blurred = False
+
+    async def fill(self, value: str):
+        self.filled = value
+
+    async def press(self, key: str):
+        if key == "Tab":
+            self.tab_pressed = True
+
+    async def evaluate(self, _script: str):
+        self.blurred = True
+        return None
+
+
+class FakeEmailInput:
+    def __init__(self) -> None:
+        self.filled = None
+
+    async def fill(self, value: str):
+        self.filled = value
+
+
+class FillCredentialsService(RegistrationService):
+    def __init__(self, email_input, password_input) -> None:
+        self.thread_id = 1
+        self.temp_email_service = Mock(
+            temp_email="demo@example.com",
+            password="Passw0rd!",
+            provider_name="demo-mail",
+        )
+        self._email_input = email_input
+        self._password_input = password_input
+        self.settle_called = False
+
+    async def _query_first(self, page, selectors):  # type: ignore[override]
+        if selectors == EMAIL_INPUT_SELECTORS:
+            return self._email_input
+        if selectors == PASSWORD_INPUT_SELECTORS:
+            return self._password_input
+        return None
+
+    async def _settle_signup_form_submission(self, page, password_input):  # type: ignore[override]
+        _ = page
+        self.settle_called = password_input is self._password_input
 
 
 class SubmitTransitionService(RegistrationService):
@@ -424,6 +487,50 @@ class NotionRulesTests(unittest.TestCase):
         self.assertFalse(wrong_node.clicked)
         self.assertFalse(disabled_signup_node.clicked)
         self.assertTrue(correct_node.clicked)
+
+    def test_click_signup_continue_ignores_non_signup_fallback_button(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+        wrong_node = FakeButtonNode(signup_candidate=False)
+        page = SubmitButtonPage(
+            {
+                "button:has-text('Continue')": [wrong_node],
+            }
+        )
+
+        clicked = asyncio.run(RegistrationService._click_signup_continue(service, page))
+
+        self.assertFalse(clicked)
+        self.assertFalse(wrong_node.clicked)
+
+    def test_is_node_enabled_rejects_loading_state(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+        loading_node = FakeButtonNode(
+            signup_candidate=True,
+            class_name="btn submit loading",
+        )
+
+        enabled = asyncio.run(RegistrationService._is_node_enabled(service, loading_node))
+
+        self.assertFalse(enabled)
+
+    def test_fill_credentials_triggers_signup_form_settle(self) -> None:
+        email_input = FakeEmailInput()
+        password_input = FakePasswordInput()
+        service = FillCredentialsService(email_input, password_input)
+        result = self._make_result(
+            success=False,
+            sessionid=None,
+            credits=None,
+            country=None,
+            seedance_value=None,
+        )
+
+        filled = asyncio.run(RegistrationService._fill_credentials(service, object(), result))
+
+        self.assertTrue(filled)
+        self.assertEqual(email_input.filled, "demo@example.com")
+        self.assertEqual(password_input.filled, "Passw0rd!")
+        self.assertTrue(service.settle_called)
 
     def test_submit_credentials_retries_until_transition_is_observed(self) -> None:
         service = SubmitTransitionService(transitions=[False, True])

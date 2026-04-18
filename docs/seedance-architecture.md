@@ -107,6 +107,7 @@
 - 注册表单页：等待邮箱输入框与密码输入框出现。
 - 提交注册表单时：优先点击位于注册表单容器内、且未命中 `disabled / aria-disabled` 的 `Continue` 按钮。
 - `submit_credentials` 当前不再把“按钮被点到”视为提交成功，而是要求页面必须进入验证码页、资料页，或注册表单实际消失，否则会在同页内最多补一次轻量重提。
+- 填完邮箱与密码后，当前会显式触发一次输入框失焦，并等待注册表单内的 `Continue` 进入真正可提交态；带 `loading / pending / disabled / aria-busy` 状态的按钮不会被点击。
 - 验证码页：优先等待验证码输入相关元素，文本 `confirm / verification code / 验证码` 作为兜底。
 - `wait_confirmation` 现在会显式区分两种后续状态：
   - 进入验证码页

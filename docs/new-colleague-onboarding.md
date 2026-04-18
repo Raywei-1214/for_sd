@@ -345,6 +345,8 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 补一条当前 `submit_credentials` 规则，排查“提交后表单留在原地”时要注意：
 
 - 程序现在会优先点注册表单容器内、且未命中 `disabled / aria-disabled` 的 `Continue`
+- 填完密码后会先显式触发一次失焦，并等待 `Continue` 进入真正可提交态
+- 如果按钮仍带 `loading / pending / aria-busy / disabled` 状态，不会继续提交
 - 点击后如果验证码页/资料页都没出现，且注册表单仍停留原地
 - 会在同页内最多补一次轻量重提
 - 仍未迁移时直接记为 `submit_credentials` 失败，不再把问题拖到 `wait_confirmation`
