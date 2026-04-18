@@ -225,6 +225,7 @@ class NotionRulesTests(unittest.TestCase):
     def test_get_sessionid_retries_until_cookie_is_available(self) -> None:
         service = RegistrationService.__new__(RegistrationService)
         service.thread_id = 1
+        service.temp_email_service = Mock(provider_name="demo-mail")
         context = FakeCookieContext(
             [
                 [{"name": "csrf", "value": "a", "domain": ".capcut.com"}],
@@ -238,6 +239,49 @@ class NotionRulesTests(unittest.TestCase):
 
         self.assertEqual(sessionid, "sid-1")
         self.assertIn("sessionid_found_attempt=2", sessionid_context)
+
+    def test_get_sessionid_runs_late_retry_for_mail_tm_when_auth_markers_exist(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+        service.thread_id = 1
+        service.temp_email_service = Mock(provider_name="mail.tm")
+        context = FakeCookieContext(
+            [
+                [{"name": "sid_guard", "value": "guard-1", "domain": ".capcut.com"}],
+                [{"name": "sid_guard", "value": "guard-1", "domain": ".capcut.com"}],
+                [
+                    {"name": "sid_guard", "value": "guard-1", "domain": ".capcut.com"},
+                    {"name": "sessionid", "value": "sid-late", "domain": ".capcut.com"},
+                ],
+            ]
+        )
+
+        sessionid, sessionid_context = asyncio.run(
+            RegistrationService.get_sessionid(service, context, FakePage())
+        )
+
+        self.assertEqual(sessionid, "sid-late")
+        self.assertIn("sessionid_found_attempt=late", sessionid_context)
+        self.assertIn("provider_name=mail.tm", sessionid_context)
+
+    def test_get_sessionid_context_records_auth_markers_when_missing(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+        service.thread_id = 1
+        service.temp_email_service = Mock(provider_name="internxt")
+        context = FakeCookieContext(
+            [
+                [{"name": "sid_guard", "value": "guard-1", "domain": ".capcut.com"}],
+                [{"name": "sid_guard", "value": "guard-1", "domain": ".capcut.com"}],
+            ]
+        )
+
+        sessionid, sessionid_context = asyncio.run(
+            RegistrationService.get_sessionid(service, context, FakePage())
+        )
+
+        self.assertIsNone(sessionid)
+        self.assertIn("provider_name=internxt", sessionid_context)
+        self.assertIn("auth_cookie_markers=sid_guard", sessionid_context)
+        self.assertIn("auth_storage_markers=device_id", sessionid_context)
 
     def test_report_writer_serializes_sessionid_and_probe_context(self) -> None:
         writer = RunReportWriter(Path("/tmp/seedance-report-test"))

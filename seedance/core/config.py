@@ -230,6 +230,24 @@ PROBE_START_CREATING_SELECTORS = (
 PROBE_READY_WAIT_ATTEMPTS = 3
 PROBE_READY_WAIT_SECONDS = 1
 PROBE_WORKSPACE_ENTRY_WAIT_SECONDS = 2
+SESSIONID_LATE_RETRY_PROVIDERS = (
+    "mail.tm",
+    "internxt",
+)
+SESSIONID_LATE_RETRY_SECONDS = 1.2
+SESSIONID_AUTH_COOKIE_MARKERS = (
+    "sessionid",
+    "sid_guard",
+    "faceu-commerce-user-info",
+    "passport_csrf_token",
+    "passport_csrf_token_default",
+    "uid_tt",
+)
+SESSIONID_AUTH_STORAGE_MARKERS = (
+    "mstok",
+    "device_id",
+    "__tea_session_id",
+)
 PROBE_GENERATE_BUTTON_SELECTORS = (
     "div[class*='commercial-button']",
     "button:has-text('Generate')",

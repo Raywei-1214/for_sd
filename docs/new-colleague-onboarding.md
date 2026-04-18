@@ -349,6 +349,16 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - 会在同页内最多补一次轻量重提
 - 仍未迁移时直接记为 `submit_credentials` 失败，不再把问题拖到 `wait_confirmation`
 
+补一条当前 `sessionid` 诊断规则，排查 `mail.tm / internxt` 时要注意：
+
+- 程序仍然只把 `sessionid` cookie 当成业务准入凭证
+- 但如果这两路样本已经出现 `sid_guard / faceu-commerce-user-info / passport_csrf_token / device_id` 等登录态线索
+- 会额外补一次很窄的晚到 cookie 重查
+- `sessionid_context` 现在会显式写出：
+  - `provider_name`
+  - `auth_cookie_markers`
+  - `auth_storage_markers`
+
 补一条当前 `probe` 规则，排查 `missing_suffix_zero / missing_credits` 时要注意：
 
 - 如果页面还停在 `Sign in / AI Agent Auto / Creative Partner Program / 1080P banner` 这类首页壳子

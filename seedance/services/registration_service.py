@@ -52,6 +52,10 @@ from seedance.core.config import (
     REGISTRATION_RESULT_POLL_ATTEMPTS,
     REGISTRATION_RESULT_POLL_INTERVAL_SECONDS,
     SCREENSHOT_DIR,
+    SESSIONID_AUTH_COOKIE_MARKERS,
+    SESSIONID_AUTH_STORAGE_MARKERS,
+    SESSIONID_LATE_RETRY_PROVIDERS,
+    SESSIONID_LATE_RETRY_SECONDS,
     SIGNUP_FORM_READY_SELECTORS,
     SIGN_UP_TRIGGER_SELECTOR,
     SIGN_UP_TRIGGER_TEXT,
@@ -703,6 +707,7 @@ class RegistrationService:
     async def get_sessionid(self, context, page: Page | None = None) -> tuple[str | None, str]:
         try:
             last_snapshot = "cookie_count=0 | cookie_names=<empty>"
+            last_cookies: list[dict] = []
             # ================================
             # sessionid 只做短轮询，不默认拉长异常样本耗时
             # 目的: 尽量等到刚落地的 cookie，同时避免把失败样本拖慢太多
@@ -712,6 +717,7 @@ class RegistrationService:
                 if wait_seconds > 0:
                     await asyncio.sleep(wait_seconds)
                 cookies = await context.cookies()
+                last_cookies = cookies or []
                 last_snapshot = self._format_cookie_snapshot(cookies)
                 for cookie in cookies or []:
                     if cookie["name"].lower() == "sessionid":
@@ -720,7 +726,45 @@ class RegistrationService:
 
             page_context = await self._capture_page_context(page)
             storage_context = await self._capture_storage_context(page)
-            context_parts = [f"sessionid_found_attempt=0", last_snapshot]
+            provider_name = self._get_current_provider_name()
+            auth_marker_snapshot = self._format_session_auth_markers(
+                cookies=last_cookies,
+                storage_context=storage_context,
+            )
+
+            # ================================
+            # mail.tm / internxt 偶发晚到登录态 cookie
+            # 目的: 只对已确认存在登录态线索的 provider 追加一次窄范围重查
+            # 边界: 不放宽准入规则，也不对所有站点默认拉长等待
+            # ================================
+            if self._should_run_late_sessionid_retry(
+                provider_name=provider_name,
+                cookies=last_cookies,
+                page_context=page_context,
+                storage_context=storage_context,
+            ):
+                await asyncio.sleep(SESSIONID_LATE_RETRY_SECONDS)
+                cookies = await context.cookies()
+                last_cookies = cookies or []
+                last_snapshot = self._format_cookie_snapshot(cookies)
+                auth_marker_snapshot = self._format_session_auth_markers(
+                    cookies=last_cookies,
+                    storage_context=storage_context,
+                )
+                for cookie in cookies or []:
+                    if cookie["name"].lower() == "sessionid":
+                        logger.info(f"✓✓✓ 成功获取晚到 sessionid: {cookie['value']}")
+                        return (
+                            cookie["value"],
+                            f"sessionid_found_attempt=late | provider_name={provider_name or '<empty>'} | {last_snapshot} | {auth_marker_snapshot}",
+                        )
+
+            context_parts = [
+                "sessionid_found_attempt=0",
+                f"provider_name={provider_name or '<empty>'}",
+                last_snapshot,
+                auth_marker_snapshot,
+            ]
             if page_context:
                 context_parts.append(page_context)
             if storage_context:
@@ -730,6 +774,59 @@ class RegistrationService:
             return None, context_text
         except Exception:
             return None, "sessionid_capture_error"
+
+    def _get_current_provider_name(self) -> str:
+        temp_email_service = getattr(self, "temp_email_service", None)
+        provider_name = getattr(temp_email_service, "provider_name", None)
+        return str(provider_name or "").strip().lower()
+
+    def _format_session_auth_markers(
+        self,
+        cookies: list[dict] | None,
+        storage_context: str | None,
+    ) -> str:
+        cookie_markers = []
+        cookie_name_set = {
+            str(cookie.get("name", "")).lower()
+            for cookie in (cookies or [])
+            if cookie.get("name")
+        }
+        for marker in SESSIONID_AUTH_COOKIE_MARKERS:
+            if marker in cookie_name_set:
+                cookie_markers.append(marker)
+
+        storage_markers = []
+        lowered_storage_context = (storage_context or "").lower()
+        for marker in SESSIONID_AUTH_STORAGE_MARKERS:
+            if marker in lowered_storage_context:
+                storage_markers.append(marker)
+
+        cookie_part = ",".join(cookie_markers) if cookie_markers else "<empty>"
+        storage_part = ",".join(storage_markers) if storage_markers else "<empty>"
+        return f"auth_cookie_markers={cookie_part} | auth_storage_markers={storage_part}"
+
+    def _should_run_late_sessionid_retry(
+        self,
+        provider_name: str,
+        cookies: list[dict] | None,
+        page_context: str | None,
+        storage_context: str | None,
+    ) -> bool:
+        if provider_name not in SESSIONID_LATE_RETRY_PROVIDERS:
+            return False
+
+        auth_marker_snapshot = self._format_session_auth_markers(
+            cookies=cookies,
+            storage_context=storage_context,
+        )
+        if "auth_cookie_markers=<empty>" not in auth_marker_snapshot:
+            return True
+
+        lowered_page_context = (page_context or "").lower()
+        lowered_storage_context = (storage_context or "").lower()
+        if not self._is_video_probe_context(page_context):
+            return False
+        return "mstok" in lowered_storage_context or "device_id" in lowered_storage_context or "start creating" in lowered_page_context
 
     async def _fill_birth_date(self, page: Page) -> tuple[int, str, int]:
         year = random.randint(1990, 2000)

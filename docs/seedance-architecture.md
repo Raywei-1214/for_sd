@@ -23,6 +23,7 @@
 - `seedance/services/registration_service.py`
   - 负责 Dreamina 注册主流程、积分探测、`sessionid` 抓取。
   - `probe` 当前只保留视频工作区采样路径：优先尝试 `AI Video`，再尝试 `Start Creating`；并显式屏蔽 `agentic / generate / omniReference` 页面。若 URL 不是 `home?type=video&workspace=0`，该轮采样会直接判成无效，不再额外追加 `goto` 导航；若页面只剩 `Explore Create Assets` 这类半 ready 壳子，会先做 3 秒内的轻量 ready 等待，仍未出模型区/生成区时才补一次工作区引导再采。若 ready 判定始终未通过，本轮不会继续抓取 dropdown/cost 伪信号，而是直接返回空采样交给外层重试。
+  - `sessionid` 采集当前默认仍只认 `sessionid` cookie 作为业务凭证；但对 `mail.tm / internxt` 会在检测到 `sid_guard / faceu-commerce-user-info / passport_csrf_token / device_id` 等登录态线索后，追加一次窄范围晚到 cookie 重查，并把命中的认证线索显式写进 `sessionid_context`。
 - `seedance/services/watermark_service.py`
   - 负责单视频去水印调用、异常归一与结果对象构造。
 - `seedance/services/email_service.py`
