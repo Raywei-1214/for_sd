@@ -351,6 +351,14 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - 会在同页内最多补一次轻量重提
 - 仍未迁移时直接记为 `submit_credentials` 失败，不再把问题拖到 `wait_confirmation`
 
+补一条当前“验证码页 -> 资料页”规则，排查 `fill_profile` 失败时要注意：
+
+- 程序在填完验证码后，会先显式触发一次确认页收敛：
+- 先做一次 `Tab` 失焦，再补一次 `Enter` 提交
+- 这个动作只在验证码输入框仍可见时执行，不会额外追加外网请求
+- 如果后续资料页仍未出现，`fill_profile` 失败上下文里的 `confirmation_input=visible`
+- 基本就说明问题卡在“验证码提交后状态没迁移”，而不是生日资料页本身坏了
+
 补一条当前 `sessionid` 诊断规则，排查 `mail.tm / internxt` 时要注意：
 
 - 程序仍然只把 `sessionid` cookie 当成业务准入凭证

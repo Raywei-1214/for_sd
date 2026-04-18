@@ -11,6 +11,7 @@ from playwright.async_api import Page, async_playwright
 
 from seedance.core.config import (
     CONFIRMATION_BODY_TEXT,
+    CONFIRMATION_SETTLE_WAIT_SECONDS,
     CONFIRMATION_POLL_ATTEMPTS,
     CONFIRMATION_POLL_INTERVAL_SECONDS,
     CONTINUE_BUTTON_SELECTORS,
@@ -663,6 +664,43 @@ class RegistrationService:
                 return True
 
         return False
+
+    async def _settle_confirmation_submission(self, page: Page) -> None:
+        # ================================
+        # 验证码输入后，前端可能要等失焦或提交事件才会进入资料页
+        # 目的: 显式触发一次验证码表单收敛，避免卡在 confirmation_input=visible
+        # 边界: 只在验证码页停留时执行一次，不额外追加外网请求
+        # ================================
+        try:
+            await page.keyboard.press("Tab")
+        except Exception:
+            pass
+
+        try:
+            await page.keyboard.press("Enter")
+        except Exception:
+            pass
+
+        for _ in range(CONFIRMATION_SETTLE_WAIT_SECONDS):
+            if await self._has_visible_selector(page, PROFILE_READY_SELECTORS):
+                return
+            if await self._has_text_marker(page, PROFILE_READY_TEXT_MARKERS):
+                return
+            if not await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
+                return
+            await asyncio.sleep(1)
+
+    async def _nudge_confirmation_to_profile(self, page: Page) -> bool:
+        # ================================
+        # 资料页失败里最常见的是验证码页未真正提交
+        # 目的: 仅在确认页仍可见时，补一次窄范围推进
+        # 边界: 只负责“确认页 -> 资料页”收敛，不承担注册完成或成功页判定
+        # ================================
+        if not await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
+            return False
+
+        await self._settle_confirmation_submission(page)
+        return True
 
     async def _has_visible_selector(self, page: Page, selectors: tuple[str, ...]) -> bool:
         for selector in selectors:
@@ -1555,6 +1593,7 @@ class RegistrationService:
 
             # 仍停留在验证码页时继续等待，不立即把它误判成资料页失败
             if await self._has_visible_selector(page, CONFIRMATION_READY_SELECTORS):
+                await self._nudge_confirmation_to_profile(page)
                 await asyncio.sleep(1)
                 continue
             if await self._has_text_marker(
@@ -1591,6 +1630,7 @@ class RegistrationService:
             )
             return False
         await page.keyboard.type(verification_code, delay=100)
+        await self._settle_confirmation_submission(page)
         return True
 
     async def _complete_profile(

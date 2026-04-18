@@ -4,7 +4,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from seedance.core.config import EMAIL_INPUT_SELECTORS, PASSWORD_INPUT_SELECTORS
+from seedance.core.config import (
+    CONFIRMATION_READY_SELECTORS,
+    EMAIL_INPUT_SELECTORS,
+    PASSWORD_INPUT_SELECTORS,
+    PROFILE_READY_SELECTORS,
+)
 from seedance.core.models import RegistrationResult
 from seedance.core.notion_rules import (
     NOTION_SYNC_SUFFIX,
@@ -195,6 +200,49 @@ class FillCredentialsService(RegistrationService):
     async def _settle_signup_form_submission(self, page, password_input):  # type: ignore[override]
         _ = page
         self.settle_called = password_input is self._password_input
+
+
+class FakeKeyboard:
+    def __init__(self) -> None:
+        self.typed = []
+        self.pressed = []
+
+    async def type(self, value: str, delay: int = 0):
+        self.typed.append((value, delay))
+
+    async def press(self, key: str):
+        self.pressed.append(key)
+
+
+class ConfirmationPage:
+    def __init__(self) -> None:
+        self.keyboard = FakeKeyboard()
+
+
+class ConfirmationSettleService(RegistrationService):
+    def __init__(self, confirmation_visible_states: list[bool], profile_visible_states: list[bool]) -> None:
+        self.thread_id = 1
+        self.temp_email_service = Mock(provider_name="demo-mail")
+        self._confirmation_visible_states = confirmation_visible_states
+        self._profile_visible_states = profile_visible_states
+        self._confirmation_index = 0
+        self._profile_index = 0
+
+    async def _has_visible_selector(self, page, selectors):  # type: ignore[override]
+        _ = page
+        if selectors == PROFILE_READY_SELECTORS:
+            value = self._profile_visible_states[min(self._profile_index, len(self._profile_visible_states) - 1)]
+            self._profile_index += 1
+            return value
+        if selectors == CONFIRMATION_READY_SELECTORS:
+            value = self._confirmation_visible_states[min(self._confirmation_index, len(self._confirmation_visible_states) - 1)]
+            self._confirmation_index += 1
+            return value
+        return False
+
+    async def _has_text_marker(self, page, text_markers):  # type: ignore[override]
+        _ = page, text_markers
+        return False
 
 
 class SubmitTransitionService(RegistrationService):
@@ -531,6 +579,49 @@ class NotionRulesTests(unittest.TestCase):
         self.assertEqual(email_input.filled, "demo@example.com")
         self.assertEqual(password_input.filled, "Passw0rd!")
         self.assertTrue(service.settle_called)
+
+    def test_settle_confirmation_submission_triggers_tab_and_enter(self) -> None:
+        service = ConfirmationSettleService(
+            confirmation_visible_states=[True, False],
+            profile_visible_states=[False, False],
+        )
+        page = ConfirmationPage()
+
+        asyncio.run(RegistrationService._settle_confirmation_submission(service, page))
+
+        self.assertEqual(page.keyboard.pressed[:2], ["Tab", "Enter"])
+
+    def test_fill_verification_code_triggers_confirmation_settle(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+        service.thread_id = 1
+        service.temp_email_service = Mock(wait_verification_code=Mock())
+
+        async def wait_code(_page):
+            return "ABC123"
+
+        settle_called = {"value": False}
+
+        async def settle(_page):
+            settle_called["value"] = True
+
+        service.temp_email_service.wait_verification_code = wait_code
+        service._settle_confirmation_submission = settle  # type: ignore[attr-defined]
+        page = ConfirmationPage()
+        result = self._make_result(
+            success=False,
+            sessionid=None,
+            credits=None,
+            country=None,
+            seedance_value=None,
+        )
+
+        submitted = asyncio.run(
+            RegistrationService._fill_verification_code(service, page, object(), result)
+        )
+
+        self.assertTrue(submitted)
+        self.assertEqual(page.keyboard.typed, [("ABC123", 100)])
+        self.assertTrue(settle_called["value"])
 
     def test_submit_credentials_retries_until_transition_is_observed(self) -> None:
         service = SubmitTransitionService(transitions=[False, True])
