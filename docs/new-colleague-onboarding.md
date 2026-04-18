@@ -359,6 +359,13 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
   - `auth_cookie_markers`
   - `auth_storage_markers`
 
+补一条当前 `acquire_temp_email` 规则，排查 `mail.tm / internxt` 时要注意：
+
+- `mail.tm` 现在不会把 `收件箱 / 刷新` 这类 inbox 壳子直接当成邮箱 ready
+- `mail.tm` 会先读 `value / data-clipboard-text / aria-label / title`，再回退到整页短行文本提取
+- `internxt` 会在短文本节点之外，再补一层整页短行文本提取
+- 如果这两路仍然报 `临时邮箱获取失败`，优先怀疑站点当轮没生成真实邮箱，而不是 `sessionid` 链
+
 补一条当前 `probe` 规则，排查 `missing_suffix_zero / missing_credits` 时要注意：
 
 - 如果页面还停在 `Sign in / AI Agent Auto / Creative Partner Program / 1080P banner` 这类首页壳子

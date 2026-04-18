@@ -62,12 +62,15 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
         name="mail.tm",
         ready_selectors=(
             "input[readonly]",
+            "input[value*='@']",
             "#address",
             ".email",
+            "[data-clipboard-text*='@']",
         ),
         email_value_selectors=(
             "input[readonly][value*='@']",
             "input[value*='@mail.tm']",
+            "input[value*='@']",
         ),
         email_text_selectors=(
             "#address",
@@ -184,8 +187,10 @@ TEMP_MAIL_ADAPTERS: dict[str, TempMailAdapter] = {
     "internxt": TempMailAdapter(
         name="internxt",
         ready_selectors=(
+            "#inbox",
             "button:has-text('Change email')",
             "button:has-text('Refresh')",
+            "button:has-text('Copy')",
         ),
         email_value_selectors=(),
         email_text_selectors=(),

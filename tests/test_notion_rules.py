@@ -12,6 +12,7 @@ from seedance.core.notion_rules import (
 )
 from seedance.infra.account_store import AccountStore
 from seedance.infra.report_writer import RunReportWriter
+from seedance.services.email_service import TempEmailService
 from seedance.services.registration_service import RegistrationService
 
 
@@ -156,6 +157,11 @@ class SubmitTransitionService(RegistrationService):
     async def _capture_confirmation_context(self, page):  # type: ignore[override]
         _ = page
         return "submit_context"
+
+
+class TempEmailTextService(TempEmailService):
+    def __init__(self) -> None:
+        pass
 
 
 class NotionRulesTests(unittest.TestCase):
@@ -456,6 +462,18 @@ class NotionRulesTests(unittest.TestCase):
         self.assertFalse(RegistrationService._has_numeric_probe_signal(service, None, None))
         self.assertTrue(RegistrationService._has_numeric_probe_signal(service, "0", None))
         self.assertTrue(RegistrationService._has_numeric_probe_signal(service, None, "70"))
+
+    def test_extract_email_from_multiline_text_prefers_short_ready_line(self) -> None:
+        service = TempEmailTextService()
+        body_text = """
+        Pricing Products Internxt Drive Internxt Antivirus Internxt VPN
+        This is a very long marketing line that includes support@example.com but should be ignored because it is intentionally much longer than the short line threshold used for real inbox addresses in provider shells.
+        demo-user@temp-mail.dev
+        """
+
+        extracted_email = TempEmailService._extract_email_from_multiline_text(service, body_text)
+
+        self.assertEqual(extracted_email, "demo-user@temp-mail.dev")
 
 
 if __name__ == "__main__":

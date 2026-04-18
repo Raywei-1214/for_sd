@@ -54,6 +54,30 @@ class TempEmailService:
             )
         )
 
+    def _extract_email_from_multiline_text(
+        self,
+        body_text: str,
+        *,
+        max_line_length: int = 120,
+    ) -> str | None:
+        # ================================
+        # 部分邮箱站把真实邮箱拆在短文本行里
+        # 目的: 从短行文本中提取真实邮箱，降低对脆弱 DOM 结构的依赖
+        # 边界: 只扫描短行，避免把大段营销文案里的示例邮箱误判成临时邮箱
+        # ================================
+        email_pattern = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+
+        for raw_line in body_text.splitlines():
+            compact_line = re.sub(r"\s+", " ", raw_line).strip()
+            if not compact_line or len(compact_line) > max_line_length:
+                continue
+
+            for candidate in re.findall(email_pattern, compact_line):
+                if self._is_valid_email(candidate):
+                    return candidate
+
+        return None
+
     async def _wait_for_tempmail_email_ready(self, page: Page, adapter: TempMailAdapter) -> None:
         # ================================
         # tempmail.lol 会先展示 Loading...，之后才真正生成邮箱
@@ -88,6 +112,28 @@ class TempEmailService:
                 or "you have 0 new messages" in lowered_text
             ) and attempt in {4, 9, 14}:
                 await self._refresh_internxt_inbox(page)
+            await asyncio.sleep(1)
+
+    async def _wait_for_mailtm_email_ready(self, page: Page, adapter: TempMailAdapter) -> None:
+        # ================================
+        # mail.tm 偶发先进入 inbox 壳子，真实邮箱稍后才落地
+        # 目的: 等待真实邮箱出现，并在卡住时优先点站内刷新
+        # 边界: 仅对 mail.tm 生效，刷新次数受限，避免额外烧流量
+        # ================================
+        for attempt in range(20):
+            extracted_email = await self._extract_email_with_adapter(page, adapter)
+            if extracted_email:
+                return
+
+            body_text = await self._get_body_text(page)
+            lowered_text = body_text.lower()
+            if (
+                "收件箱" in body_text
+                or "刷新" in body_text
+                or "inbox" in lowered_text
+                or "refresh" in lowered_text
+            ) and attempt in {4, 9, 14}:
+                await self._refresh_mailtm_inbox(page)
             await asyncio.sleep(1)
 
     async def _refresh_gptmail_inbox(self, page: Page) -> None:
@@ -129,6 +175,29 @@ class TempEmailService:
         except Exception:
             return
 
+    async def _refresh_mailtm_inbox(self, page: Page) -> None:
+        # ================================
+        # mail.tm 有站内刷新入口
+        # 目的: 优先触发站内刷新，避免整页 reload 打断邮箱生成态
+        # 边界: 只点击可见刷新控件，失败交给上层自然重试
+        # ================================
+        refresh_selectors = (
+            "button:has-text('刷新')",
+            "button:has-text('Refresh')",
+            "a:has-text('刷新')",
+            "a:has-text('Refresh')",
+            "button[aria-label*='refresh' i]",
+        )
+        for selector in refresh_selectors:
+            try:
+                refresh_button = page.locator(selector).first
+                if await refresh_button.count() and await refresh_button.is_visible():
+                    await refresh_button.click(timeout=5000)
+                    await asyncio.sleep(2)
+                    return
+            except Exception:
+                continue
+
     async def _light_refresh_email_page(self, page: Page, adapter: TempMailAdapter) -> bool:
         # ================================
         # 验证码等待阶段优先走站点内轻刷新
@@ -145,6 +214,10 @@ class TempEmailService:
 
         if adapter.name == "internxt":
             await self._refresh_internxt_inbox(page)
+            return True
+
+        if adapter.name == "mail.tm":
+            await self._refresh_mailtm_inbox(page)
             return True
 
         if adapter.name == "10minutemail.net":
@@ -389,11 +462,48 @@ class TempEmailService:
         if adapter.name == "internxt":
             return await self._wait_for_internxt_ready(page, adapter)
 
+        if adapter.name == "mail.tm":
+            return await self._wait_for_mailtm_ready(page, adapter)
+
         for _ in range(EMAIL_SCAN_SECONDS):
             for selector in adapter.ready_selectors:
                 try:
                     node = await page.query_selector(selector)
                     if node and await node.is_visible():
+                        return True
+                except Exception:
+                    continue
+            await asyncio.sleep(1)
+        return False
+
+    async def _wait_for_mailtm_ready(
+        self,
+        page: Page,
+        adapter: TempMailAdapter,
+    ) -> bool:
+        # ================================
+        # mail.tm 不能只看 inbox 壳子，还要确认真实邮箱已经落地
+        # 目的: 避免把“收件箱 / 刷新已出现但邮箱未生成”误判成 ready
+        # 边界: 仅对 mail.tm 生效，不改变其他站点 ready 契约
+        # ================================
+        for _ in range(EMAIL_SCAN_SECONDS):
+            extracted_email = await self._extract_mailtm_email(page)
+            if extracted_email:
+                return True
+
+            for selector in adapter.ready_selectors:
+                try:
+                    node = await page.query_selector(selector)
+                    if not node or not await node.is_visible():
+                        continue
+
+                    text = ((await node.text_content()) or "").strip()
+                    value = (await node.get_attribute("value") or "").strip()
+                    clipboard_text = (await node.get_attribute("data-clipboard-text") or "").strip()
+                    if any(
+                        self._is_valid_email(candidate)
+                        for candidate in (text, value, clipboard_text)
+                    ):
                         return True
                 except Exception:
                     continue
@@ -472,6 +582,10 @@ class TempEmailService:
             mailticking_email = await self._extract_mailticking_email(page)
             if mailticking_email:
                 return mailticking_email
+        if adapter.name == "mail.tm":
+            mailtm_email = await self._extract_mailtm_email(page)
+            if mailtm_email:
+                return mailtm_email
         if adapter.name == "internxt":
             internxt_email = await self._extract_internxt_email(page)
             if internxt_email:
@@ -685,6 +799,7 @@ class TempEmailService:
             "p",
             "span",
             "div",
+            "button",
         )
 
         for selector in text_selectors:
@@ -699,7 +814,56 @@ class TempEmailService:
             except Exception:
                 continue
 
-        return None
+        body_text = await self._get_body_text(page)
+        return self._extract_email_from_multiline_text(body_text)
+
+    async def _extract_mailtm_email(self, page: Page) -> str | None:
+        # ================================
+        # mail.tm 当前真实邮箱可能挂在 value / clipboard / 短文本节点里
+        # 目的: 先按站点结构抓取，再退回整页短行文本扫描
+        # 边界: 仅在 mail.tm 适配器内扩展，不污染其他站点邮箱提取口径
+        # ================================
+        selector_attribute_pairs = (
+            ("input[readonly]", "value"),
+            ("input[value*='@']", "value"),
+            ("[data-clipboard-text*='@']", "data-clipboard-text"),
+            ("[title*='@']", "title"),
+            ("[aria-label*='@']", "aria-label"),
+        )
+
+        for selector, attribute_name in selector_attribute_pairs:
+            try:
+                elements = await page.query_selector_all(selector)
+                for element in elements:
+                    attribute_value = (await element.get_attribute(attribute_name) or "").strip()
+                    if self._is_valid_email(attribute_value):
+                        return attribute_value
+            except Exception:
+                continue
+
+        text_selectors = (
+            "#address",
+            ".email",
+            ".address",
+            "button",
+            "span",
+            "p",
+            "div",
+        )
+        for selector in text_selectors:
+            try:
+                elements = await page.query_selector_all(selector)
+                for element in elements:
+                    text = re.sub(r"\s+", " ", (await element.inner_text()).strip())
+                    if not text or len(text) > 120:
+                        continue
+                    if self._is_valid_email(text):
+                        return text
+            except Exception:
+                continue
+
+        body_text = await self._get_body_text(page)
+        return self._extract_email_from_multiline_text(body_text)
 
     async def _extract_tempmail_plus_email(self, page: Page) -> str | None:
         # ================================
@@ -854,6 +1018,8 @@ class TempEmailService:
 
             if self.provider_name == "tempmail.lol":
                 await self._wait_for_tempmail_email_ready(page, adapter)
+            if self.provider_name == "mail.tm":
+                await self._wait_for_mailtm_email_ready(page, adapter)
             if self.provider_name == "internxt":
                 await self._wait_for_internxt_email_ready(page, adapter)
 

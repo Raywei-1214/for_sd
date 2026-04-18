@@ -203,6 +203,10 @@
   - 验证码阶段会先刷新收件箱，再尝试点开 `Dreamina / CapCut / verification` 相关邮件正文
   - Internxt 的验证码等待窗口会比普通站点更长，避免把慢收件箱过早判成失败
   - 最后再从短文本节点和正文文本中提取真实邮箱与验证码
+- `mail.tm` 当前已补专用提取逻辑：
+  - 不能只把 `收件箱 / 刷新` 这类 inbox 壳子当成 ready
+  - 会优先读取 `value / data-clipboard-text / aria-label / title` 里的邮箱
+  - 若邮箱仍未落地，会在 inbox 壳子内做受限次数的站内刷新，再补一轮短行文本提取
 - `guerrillamail` 虽已补专用提取逻辑，但当前暂停：
   - 优先读取 `#email-widget`
   - 其次读取 `input[name='show_email']`
