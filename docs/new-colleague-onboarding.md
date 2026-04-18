@@ -366,6 +366,13 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - 会额外补一次很窄的晚到 cookie 重查
 - `sessionid_context` 现在会显式写出：
   - `provider_name`
+
+补一条当前 `missing_suffix_zero` 排查规则，看到 `tempmail.lol` 这类样本时要注意：
+
+- 如果 `probe_context` 只剩 `Explore Create Assets`，但 URL 已经是视频页
+- 程序现在会把它当成“浅壳视频页”处理
+- 会先做一次轻量清场，再在同页短等后复采
+- 这一步不追加新的 `goto`
   - `auth_cookie_markers`
   - `auth_storage_markers`
 

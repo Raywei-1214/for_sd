@@ -132,6 +132,10 @@
     - `month_select=visible`
     - `day_select=visible`
 - 成功页：要求同时避开 `login/signup` URL，并等待积分区、生成按钮、菜单区等稳定元素之一出现。
+- `probe` 当前会额外识别 `Explore Create Assets` 这类浅壳视频页：
+  - 若 URL 已是视频页，但仍没有数值、模型下拉、生成按钮
+  - 会先做一次轻量清场，再在同页短等后复采
+  - 不会追加新的 `goto`
 
 ## 当前邮箱适配策略
 
