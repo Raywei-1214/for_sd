@@ -92,6 +92,72 @@ class ProbeSnapshotService(RegistrationService):
         return self._context_text
 
 
+class FakeButtonNode:
+    def __init__(
+        self,
+        *,
+        visible: bool = True,
+        disabled: str | None = None,
+        aria_disabled: str | None = None,
+        signup_candidate: bool = False,
+    ) -> None:
+        self.visible = visible
+        self.disabled = disabled
+        self.aria_disabled = aria_disabled
+        self.signup_candidate = signup_candidate
+        self.clicked = False
+
+    async def is_visible(self):
+        return self.visible
+
+    async def get_attribute(self, name: str):
+        if name == "disabled":
+            return self.disabled
+        if name == "aria-disabled":
+            return self.aria_disabled
+        return None
+
+    async def evaluate(self, _script: str):
+        return self.signup_candidate
+
+    async def click(self, timeout: int = 10000):
+        _ = timeout
+        self.clicked = True
+
+
+class SubmitButtonPage:
+    def __init__(self, selector_nodes: dict[str, list[FakeButtonNode]]) -> None:
+        self.selector_nodes = selector_nodes
+
+    async def query_selector_all(self, selector: str):
+        return list(self.selector_nodes.get(selector, []))
+
+
+class SubmitTransitionService(RegistrationService):
+    def __init__(self, transitions: list[bool], click_ok: bool = True) -> None:
+        self.thread_id = 1
+        self.temp_email_service = Mock(temp_email=None, password=None, provider_name=None)
+        self._transitions = transitions
+        self._transition_index = 0
+        self._click_ok = click_ok
+        self.click_count = 0
+
+    async def _click_signup_continue(self, page, timeout: int = 10000):  # type: ignore[override]
+        _ = page, timeout
+        self.click_count += 1
+        return self._click_ok
+
+    async def _wait_for_submit_transition(self, page):  # type: ignore[override]
+        _ = page
+        value = self._transitions[min(self._transition_index, len(self._transitions) - 1)]
+        self._transition_index += 1
+        return value
+
+    async def _capture_confirmation_context(self, page):  # type: ignore[override]
+        _ = page
+        return "submit_context"
+
+
 class NotionRulesTests(unittest.TestCase):
     def _make_result(self, **overrides) -> RegistrationResult:
         payload = {
@@ -290,6 +356,55 @@ class NotionRulesTests(unittest.TestCase):
         self.assertIsNone(snapshot["seedance_credits"])
         self.assertFalse(snapshot["model_dropdown_found"])
         self.assertIn("seedance2_cost=<empty>", str(snapshot["probe_context"]))
+
+    def test_click_signup_continue_prefers_form_scoped_enabled_button(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+        wrong_node = FakeButtonNode(signup_candidate=False)
+        disabled_signup_node = FakeButtonNode(signup_candidate=True, aria_disabled="true")
+        correct_node = FakeButtonNode(signup_candidate=True)
+        page = SubmitButtonPage(
+            {
+                "button:has-text('Continue')": [wrong_node, disabled_signup_node, correct_node],
+            }
+        )
+
+        clicked = asyncio.run(RegistrationService._click_signup_continue(service, page))
+
+        self.assertTrue(clicked)
+        self.assertFalse(wrong_node.clicked)
+        self.assertFalse(disabled_signup_node.clicked)
+        self.assertTrue(correct_node.clicked)
+
+    def test_submit_credentials_retries_until_transition_is_observed(self) -> None:
+        service = SubmitTransitionService(transitions=[False, True])
+        result = self._make_result(
+            success=False,
+            sessionid=None,
+            credits=None,
+            country=None,
+            seedance_value=None,
+        )
+
+        submitted = asyncio.run(RegistrationService._submit_credentials(service, object(), result))
+
+        self.assertTrue(submitted)
+        self.assertEqual(service.click_count, 2)
+
+    def test_submit_credentials_fails_when_transition_never_happens(self) -> None:
+        service = SubmitTransitionService(transitions=[False, False])
+        result = self._make_result(
+            success=False,
+            sessionid=None,
+            credits=None,
+            country=None,
+            seedance_value=None,
+        )
+
+        submitted = asyncio.run(RegistrationService._submit_credentials(service, object(), result))
+
+        self.assertFalse(submitted)
+        self.assertEqual(result.failed_step, "submit_credentials")
+        self.assertIn("页面未发生状态迁移", result.error_message or "")
 
     def test_numeric_probe_signal_requires_credits_or_cost(self) -> None:
         service = RegistrationService.__new__(RegistrationService)

@@ -104,6 +104,8 @@
 - 注册主流程里的 `open_home` 在首页壳打开后，会额外等待最多 `20` 秒去命中主页 ready selector。
 - 当首页稳定元素暂时未出现时，`open_home` 会额外用正文文本标记 `Explore / Create Assets` 作为二级 ready 信号。
 - 注册表单页：等待邮箱输入框与密码输入框出现。
+- 提交注册表单时：优先点击位于注册表单容器内、且未命中 `disabled / aria-disabled` 的 `Continue` 按钮。
+- `submit_credentials` 当前不再把“按钮被点到”视为提交成功，而是要求页面必须进入验证码页、资料页，或注册表单实际消失，否则会在同页内最多补一次轻量重提。
 - 验证码页：优先等待验证码输入相关元素，文本 `confirm / verification code / 验证码` 作为兜底。
 - `wait_confirmation` 现在会显式区分两种后续状态：
   - 进入验证码页

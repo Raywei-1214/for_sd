@@ -56,6 +56,8 @@ from seedance.core.config import (
     SIGN_UP_TRIGGER_SELECTOR,
     SIGN_UP_TRIGGER_TEXT,
     STEP_RETRY_COUNT,
+    SUBMIT_CLICK_RETRY_COUNT,
+    SUBMIT_TRANSITION_WAIT_ATTEMPTS,
     SUCCESS_READY_SELECTORS,
     SUCCESS_READY_TEXT_MARKERS,
     YEAR_INPUT_SELECTORS,
@@ -473,13 +475,81 @@ class RegistrationService:
                 node = await page.query_selector(selector)
                 if not node or not await node.is_visible():
                     continue
-                if require_enabled and await node.get_attribute("disabled"):
+                if require_enabled and not await self._is_node_enabled(node):
                     continue
                 await node.click(timeout=timeout)
                 return True
             except Exception:
                 continue
         return False
+
+    async def _is_node_enabled(self, node) -> bool:
+        try:
+            if await node.get_attribute("disabled") is not None:
+                return False
+            aria_disabled = await node.get_attribute("aria-disabled")
+            if (aria_disabled or "").strip().lower() in {"true", "1"}:
+                return False
+            return True
+        except Exception:
+            return False
+
+    async def _is_signup_continue_candidate(self, node) -> bool:
+        try:
+            return bool(
+                await node.evaluate(
+                    """
+                    (el) => {
+                        const container = el.closest(
+                            "form, [role='dialog'], div[class*='modal'], div[class*='popup'], div[class*='drawer'], div[class*='panel']"
+                        );
+                        if (!container) {
+                            return false;
+                        }
+                        const hasEmail = !!container.querySelector(
+                            "input[type='email'], input[placeholder='Enter email'], input[autocomplete='email']"
+                        );
+                        const hasPassword = !!container.querySelector(
+                            "input[type='password'], input[placeholder='Enter password'], input[placeholder='Password']"
+                        );
+                        return hasEmail && hasPassword;
+                    }
+                    """
+                )
+            )
+        except Exception:
+            return False
+
+    async def _click_signup_continue(self, page: Page, timeout: int = 10000) -> bool:
+        fallback_node = None
+        for selector in CONTINUE_BUTTON_SELECTORS:
+            try:
+                candidates = await page.query_selector_all(selector)
+            except Exception:
+                continue
+
+            for node in candidates:
+                try:
+                    if not await node.is_visible():
+                        continue
+                    if not await self._is_node_enabled(node):
+                        continue
+                    if await self._is_signup_continue_candidate(node):
+                        await node.click(timeout=timeout)
+                        return True
+                    if fallback_node is None:
+                        fallback_node = node
+                except Exception:
+                    continue
+
+        if fallback_node is None:
+            return False
+
+        try:
+            await fallback_node.click(timeout=timeout)
+            return True
+        except Exception:
+            return False
 
     async def _click_button_by_text(
         self,
@@ -527,6 +597,19 @@ class RegistrationService:
                     return True
             except Exception:
                 continue
+        return False
+
+    async def _wait_for_submit_transition(self, page: Page) -> bool:
+        for _ in range(SUBMIT_TRANSITION_WAIT_ATTEMPTS):
+            post_submit_state = await self._wait_for_post_submit_state(page)
+            if post_submit_state in {"confirmation", "profile"}:
+                return True
+
+            signup_form_visible = await self._has_visible_selector(page, SIGNUP_FORM_READY_SELECTORS)
+            continue_button_visible = await self._has_visible_selector(page, CONTINUE_BUTTON_SELECTORS)
+            if not signup_form_visible or not continue_button_visible:
+                return True
+
         return False
 
     async def _has_visible_selector(self, page: Page, selectors: tuple[str, ...]) -> bool:
@@ -1075,15 +1158,27 @@ class RegistrationService:
 
     async def _submit_credentials(self, page: Page, result: RegistrationResult) -> bool:
         self._mark_step(result, RegistrationStep.SUBMIT_CREDENTIALS)
-        clicked = await self._click_first_visible(
-            page,
-            CONTINUE_BUTTON_SELECTORS,
-            require_enabled=True,
+        for attempt in range(1, SUBMIT_CLICK_RETRY_COUNT + 1):
+            clicked = await self._click_signup_continue(page)
+            if not clicked:
+                self._fail_step(result, RegistrationStep.SUBMIT_CREDENTIALS, "Continue 按钮不可点击")
+                return False
+
+            if await self._wait_for_submit_transition(page):
+                return True
+
+            logger.warning(
+                f"[线程{self.thread_id}] Continue 点击后页面未迁移，准备重试提交 attempt={attempt}"
+            )
+
+        failure_context = await self._capture_confirmation_context(page)
+        self._fail_step(
+            result,
+            RegistrationStep.SUBMIT_CREDENTIALS,
+            "Continue 提交后页面未发生状态迁移",
+            failure_context=failure_context,
         )
-        if not clicked:
-            self._fail_step(result, RegistrationStep.SUBMIT_CREDENTIALS, "Continue 按钮不可点击")
-            return False
-        return True
+        return False
 
     async def _wait_confirmation(self, page: Page, result: RegistrationResult) -> bool:
         self._mark_step(result, RegistrationStep.WAIT_CONFIRMATION)
