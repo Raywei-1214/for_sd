@@ -488,6 +488,22 @@ class NotionRulesTests(unittest.TestCase):
             )
         )
 
+    def test_probe_context_soft_shell_detects_agent_trends_shell(self) -> None:
+        service = RegistrationService.__new__(RegistrationService)
+
+        self.assertTrue(
+            RegistrationService._is_probe_context_soft_shell(
+                service,
+                "url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets Start Creating With AI Agent AI Agent Auto Trends AI Shorts See the prompt guide Dreamina Creative Partner Program",
+            )
+        )
+        self.assertFalse(
+            RegistrationService._is_probe_context_soft_shell(
+                service,
+                "url=https://dreamina.capcut.com/ai-tool/home?type=video&workspace=0 | body=Explore Create Assets Canvas 0 Upgrade Start Creating With AI Agent AI Image AI Video Upload up to 12 references",
+            )
+        )
+
     def test_wait_for_probe_workspace_ready_accepts_half_ready_shell_after_signal(self) -> None:
         service = ReadySignalService()
         page = ReadySignalPage(

@@ -48,6 +48,7 @@ from seedance.core.config import (
     PROBE_REQUIRED_URL_MARKERS,
     PROBE_RETRY_COUNT,
     PROBE_SHALLOW_SHELL_WAIT_SECONDS,
+    PROBE_SOFT_BLOCKED_SHELL_WAIT_SECONDS,
     PROBE_START_CREATING_SELECTORS,
     PROBE_VIDEO_ENTRY_SELECTORS,
     PROBE_WORKSPACE_ENTRY_WAIT_SECONDS,
@@ -353,6 +354,25 @@ class RegistrationService:
 
         context_text = page_context.lower()
         if "body=explore create assets" not in context_text:
+            return False
+
+        rich_workspace_markers = (
+            "canvas 0 upgrade",
+            "ai image",
+            "ai video",
+            "reference upload",
+            "upload up to 12 references",
+            "describe your video",
+            "mimic motion",
+        )
+        return not any(marker in context_text for marker in rich_workspace_markers)
+
+    def _is_probe_context_soft_shell(self, page_context: str | None) -> bool:
+        if not page_context:
+            return False
+
+        context_text = page_context.lower()
+        if not self._is_probe_context_soft_blocked(page_context):
             return False
 
         rich_workspace_markers = (
@@ -1224,6 +1244,39 @@ class RegistrationService:
             ):
                 await self._dismiss_probe_blockers(page)
                 await asyncio.sleep(PROBE_SHALLOW_SHELL_WAIT_SECONDS)
+                probe_snapshot = await self._collect_probe_snapshot(
+                    page=page,
+                    navigation_attempt=navigation_attempt,
+                    balance_samples=balance_samples,
+                    generate_button_samples=generate_button_samples,
+                )
+                probe_context = str(probe_snapshot["probe_context"])
+                page_context = probe_snapshot["page_context"]
+                current_seedance2_cost = probe_snapshot["seedance2_cost"]
+                current_seedance_credits = probe_snapshot["seedance_credits"]
+                current_model_dropdown_found = bool(probe_snapshot["model_dropdown_found"])
+                current_model_fast_selected = bool(probe_snapshot["model_fast_selected"])
+                current_generate_button_samples = list(probe_snapshot["generate_button_samples"])
+                probe_context_blocked = self._is_probe_context_blocked(page_context)
+                probe_has_numeric_signal = self._has_numeric_probe_signal(
+                    current_seedance_credits,
+                    current_seedance2_cost,
+                )
+                probe_is_video_context = self._is_video_probe_context(page_context)
+
+            # ================================
+            # AI Agent Auto Trends / prompt guide 属于软阻塞壳子
+            # 目的: 对“视频页已对齐但仍被软阻塞文案覆盖”的样本补一次同页收敛
+            # 边界: 只做清场、短等、复采，不新增 goto
+            # ================================
+            if (
+                probe_is_video_context
+                and probe_context_blocked
+                and not probe_has_numeric_signal
+                and self._is_probe_context_soft_shell(page_context)
+            ):
+                await self._dismiss_probe_blockers(page)
+                await asyncio.sleep(PROBE_SOFT_BLOCKED_SHELL_WAIT_SECONDS)
                 probe_snapshot = await self._collect_probe_snapshot(
                     page=page,
                     navigation_attempt=navigation_attempt,

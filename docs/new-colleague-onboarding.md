@@ -373,6 +373,13 @@ python3 dreamina_register_playwright_usa.py home-check --attempts 10 --concurren
 - 程序现在会把它当成“浅壳视频页”处理
 - 会先做一次轻量清场，再在同页短等后复采
 - 这一步不追加新的 `goto`
+
+补一条当前 `missing_credits / missing_suffix_zero` 排查规则，看到 `mail.chatgpt.org.uk` 这类样本时要注意：
+
+- 如果 `probe_context` 里出现 `AI Agent Auto Trends / Creative Partner Program / See the prompt guide`
+- 这不是错误 URL，而是“软阻塞壳子”覆盖了视频页
+- 程序现在会对这类样本做一次同页清场和短等后复采
+- 不会追加新的 `goto`
   - `auth_cookie_markers`
   - `auth_storage_markers`
 
